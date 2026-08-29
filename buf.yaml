@@ -1,0 +1,15 @@
+version: v2
+modules:
+  - path: proto
+    name: buf.build/lihongjie0209/audit-service
+lint:
+  use:
+    - STANDARD
+  # Preserve the scaffold's already-published direct User response messages.
+  # New RPCs should use a unique <Method>Response wrapper.
+  except:
+    - RPC_REQUEST_RESPONSE_UNIQUE
+    - RPC_RESPONSE_STANDARD_NAME
+breaking:
+  use:
+    - FILE

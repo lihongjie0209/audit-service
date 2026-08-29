@@ -1,0 +1,127 @@
+name: audit-service-dev
+
+x-app-env: &app-env
+  APP_ENV: compose
+  APP_HTTP_ADDRESS: 0.0.0.0:8080
+  APP_GRPC_ADDRESS: 0.0.0.0:9090
+  APP_DATABASE_ENABLED: "true"
+  APP_DATABASE_TYPE: postgres
+  APP_DATABASE_NAME: platform
+  APP_DATABASE_SCHEMA: audit
+  APP_DATABASE_DSN: postgres://app:app@postgres:5432/platform?sslmode=disable&search_path=audit
+  APP_REDIS_ENABLED: "true"
+  APP_REDIS_ADDRESS: redis:6379
+  APP_RATE_LIMIT_ENABLED: "true"
+  APP_IDEMPOTENCY_ENABLED: "true"
+  APP_EVENT_BUS_ENABLED: "true"
+  APP_EVENT_BUS_URLS: nats://nats:4222
+  APP_MIGRATION_AUTO_UP: "true"
+  APP_MIGRATION_CREATE_SCHEMA: "true"
+  APP_MIGRATION_PATH: /app/migrations/postgres
+  APP_MIGRATION_DATABASE_URL: postgres://app:app@postgres:5432/platform?sslmode=disable&search_path=audit
+  APP_MIGRATION_TABLE: audit_schema_migrations
+  APP_JWT_SECRET: dev-only-jwt-secret-change-me-000000
+  APP_AUTH_CLIENT_ID: local-client
+  APP_AUTH_CLIENT_SECRET: local-secret
+
+x-app-build: &app-build
+  context: .
+  args:
+    GOPROXY: ${GOPROXY:-https://proxy.golang.org,direct}
+    VERSION: ${VERSION:-dev}
+    COMMIT: ${COMMIT:-unknown}
+    BUILD_TIME: ${BUILD_TIME:-unknown}
+
+services:
+  mysql:
+    image: mysql:8.4
+    environment:
+      MYSQL_ROOT_PASSWORD: root
+      MYSQL_DATABASE: platform
+      MYSQL_USER: app
+      MYSQL_PASSWORD: app
+    ports: ["3306:3306"]
+    volumes: [mysql-data:/var/lib/mysql]
+    healthcheck:
+      test: [CMD, mysqladmin, ping, -h, 127.0.0.1, -uapp, -papp]
+      interval: 5s
+      timeout: 3s
+      retries: 30
+
+  postgres:
+    image: postgres:17-alpine
+    environment:
+      POSTGRES_USER: app
+      POSTGRES_PASSWORD: app
+      POSTGRES_DB: platform
+    ports: ["5432:5432"]
+    volumes: [postgres-data:/var/lib/postgresql/data]
+    healthcheck:
+      test: [CMD-SHELL, pg_isready -U app -d platform]
+      interval: 5s
+      timeout: 3s
+      retries: 30
+
+  redis:
+    image: redis:7.4-alpine
+    command: [redis-server, --appendonly, "yes"]
+    ports: ["6379:6379"]
+    volumes: [redis-data:/data]
+    healthcheck:
+      test: [CMD, redis-cli, ping]
+      interval: 5s
+      timeout: 3s
+      retries: 30
+
+  nats:
+    image: nats:2.11.11-alpine
+    command: [-js, -m, "8222"]
+    ports: ["4222:4222", "8222:8222"]
+    volumes: [nats-data:/data]
+    healthcheck:
+      test: [CMD, wget, -q, -O, /dev/null, http://127.0.0.1:8222/healthz]
+      interval: 5s
+      timeout: 3s
+      retries: 30
+
+  migrate-postgres:
+    build: *app-build
+    entrypoint: [/app/migrate]
+    command: [-config, /app/config/config.yaml, -env, compose, -direction, up]
+    environment:
+      APP_MIGRATION_PATH: /app/migrations/postgres
+      APP_DATABASE_SCHEMA: audit
+      APP_MIGRATION_CREATE_SCHEMA: "true"
+      APP_MIGRATION_DATABASE_URL: postgres://app:app@postgres:5432/platform?sslmode=disable&search_path=audit
+    depends_on:
+      postgres: {condition: service_healthy}
+    restart: "no"
+
+  migrate-mysql:
+    build: *app-build
+    entrypoint: [/app/migrate]
+    command: [-config, /app/config/config.yaml, -env, compose, -direction, up]
+    environment:
+      APP_MIGRATION_PATH: /app/migrations/mysql
+      APP_MIGRATION_DATABASE_URL: mysql://app:app@tcp(mysql:3306)/platform
+    depends_on:
+      mysql: {condition: service_healthy}
+    restart: "no"
+
+  api:
+    build: *app-build
+    environment: *app-env
+    ports: ["8080:8080", "9090:9090"]
+    volumes: [api-logs:/app/logs]
+    depends_on:
+      migrate-postgres: {condition: service_completed_successfully}
+      migrate-mysql: {condition: service_completed_successfully}
+      redis: {condition: service_healthy}
+      nats: {condition: service_healthy}
+
+volumes:
+  mysql-data:
+  postgres-data:
+  redis-data:
+  nats-data:
+  api-logs:

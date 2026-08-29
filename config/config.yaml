@@ -1,0 +1,137 @@
+app:
+  name: audit-service
+  env: development
+  shutdown_timeout: 10s
+http:
+  address: 127.0.0.1:8080
+  read_timeout: 10s
+  write_timeout: 15s
+  idle_timeout: 60s
+  request_timeout: 10s
+  max_body_bytes: 1048576
+  trusted_proxies: []
+  cors:
+    enabled: false
+    allowed_origins: []
+    allowed_headers: [Authorization, Content-Type, X-Request-ID]
+    exposed_headers: [X-Request-ID, X-RateLimit-Limit, X-RateLimit-Remaining, Retry-After]
+    max_age: 12h
+grpc:
+  enabled: true
+  address: 127.0.0.1:9090
+  reflection_enabled: true
+  max_receive_bytes: 16777216
+  tls:
+    enabled: false
+    cert_file: ""
+    key_file: ""
+    client_ca_file: ""
+log:
+  level: info
+  format: json
+  file: logs/app.log
+  max_size_mb: 100
+  max_backups: 10
+  max_age_days: 30
+  compress: true
+database:
+  enabled: false
+  name: platform
+  schema: audit
+  type: postgres
+  dsn: ""
+  max_open_conns: 25
+  max_idle_conns: 10
+  conn_max_lifetime: 5m
+  conn_max_idle_time: 1m
+  ping_timeout: 5s
+redis:
+  enabled: false
+  address: 127.0.0.1:6379
+  username: ""
+  password: ""
+  db: 0
+  dial_timeout: 5s
+  read_timeout: 3s
+  write_timeout: 3s
+health:
+  database_timeout: 2s
+  redis_timeout: 2s
+rate_limit:
+  enabled: false
+  fail_open: false
+  ip: {rate: 120, burst: 30, period: 1m}
+  api: {rate: 10000, burst: 1000, period: 1m}
+  user: {rate: 600, burst: 100, period: 1m}
+  login: {rate: 10, burst: 3, period: 1m}
+observability:
+  metrics_enabled: true
+  tracing_enabled: false
+  tracing_endpoint: http://127.0.0.1:4318
+  tracing_sample_ratio: 0.1
+  pprof_enabled: false
+  pprof_token: ""
+swagger:
+  enabled: true
+  require_auth: false
+jwt:
+  issuer: audit-service
+  secret: ""
+  ttl: 2h
+auth:
+  jwks_url: ""
+  issuer: identity-service
+  audience: audit-service
+  client_id: ""
+  client_secret: ""
+  # Supports path.Match wildcards; '*' never crosses '/'.
+  skip_http_paths: [/api/v1/version]
+  skip_grpc_methods:
+    - /grpc.health.v1.Health/*
+  psk:
+    enabled: false
+    # Inject with APP_AUTH_PSK_KEY; never commit a real key.
+    key: ""
+    http_paths: []
+    grpc_methods: []
+cron:
+  enabled: true
+  timezone: Asia/Shanghai
+  sample_spec: "0 */5 * * * *"
+migration:
+  auto_up: false
+  create_schema: false
+  path: migrations/postgres
+  database_url: ""
+  table: audit_schema_migrations
+
+user:
+  cache_ttl: 5m
+  lock_ttl: 10s
+  lock_retry_delay: 100ms
+
+idempotency:
+  enabled: false
+  processing_ttl: 30s
+  result_ttl: 24h
+  failure_ttl: 5m
+
+event_bus:
+  enabled: false
+  urls: [nats://127.0.0.1:4222]
+  stream_name: SERVICE_EVENTS
+  subjects: [service.>]
+  storage: file
+  max_age: 168h
+  duplicate_window: 10m
+  connect_timeout: 5s
+  reconnect_wait: 1s
+  publish_timeout: 5s
+  consumer_ack_wait: 30s
+  consumer_max_deliver: 10
+
+# Named outbound clients. Put environment-specific endpoints and credentials in
+# config-{env}.yaml or APP_ variables.
+outbound:
+  http: {}
+  grpc: {}

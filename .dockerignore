@@ -1,0 +1,7 @@
+.git
+.github
+bin
+logs
+coverage.out
+.env
+config/config.local.yaml

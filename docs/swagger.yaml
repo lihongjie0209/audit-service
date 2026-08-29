@@ -1,0 +1,371 @@
+basePath: /
+definitions:
+  audit.Page:
+    properties:
+      page:
+        type: integer
+      page_size:
+        type: integer
+      records:
+        items:
+          $ref: '#/definitions/audit.Record'
+        type: array
+      total:
+        type: integer
+    type: object
+  audit.Record:
+    properties:
+      action:
+        type: string
+      actor_id:
+        type: string
+      actor_type:
+        type: string
+      after_summary:
+        items:
+          type: integer
+        type: array
+      before_summary:
+        items:
+          type: integer
+        type: array
+      created_at:
+        type: string
+      created_by:
+        type: string
+      id:
+        type: string
+      occurred_at:
+        type: string
+      request_id:
+        type: string
+      resource_id:
+        type: string
+      resource_type:
+        type: string
+      source_service:
+        type: string
+      tenant_id:
+        type: string
+      trace_id:
+        type: string
+      updated_at:
+        type: string
+      updated_by:
+        type: string
+      version:
+        type: integer
+    type: object
+  buildinfo.Info:
+    properties:
+      build_time:
+        type: string
+      commit:
+        type: string
+      started_at:
+        type: string
+      uptime:
+        type: string
+      version:
+        type: string
+    type: object
+  health.Dependency:
+    properties:
+      latency:
+        type: string
+      status:
+        type: string
+    type: object
+  health.Status:
+    properties:
+      dependencies:
+        additionalProperties:
+          $ref: '#/definitions/health.Dependency'
+        type: object
+      status:
+        type: string
+    type: object
+  httptransport.ExportAuditRequest:
+    properties:
+      action:
+        type: string
+      actor_id:
+        type: string
+      max_records:
+        type: integer
+      occurred_from:
+        type: string
+      occurred_to:
+        type: string
+      page:
+        type: integer
+      page_size:
+        type: integer
+      request_id:
+        type: string
+      resource_id:
+        type: string
+      resource_type:
+        type: string
+      tenant_id:
+        type: string
+    required:
+    - tenant_id
+    type: object
+  httptransport.GetAuditRequest:
+    properties:
+      id:
+        type: string
+      tenant_id:
+        type: string
+    required:
+    - id
+    - tenant_id
+    type: object
+  httptransport.MeResponseBody:
+    properties:
+      subject:
+        type: string
+    type: object
+  httptransport.QueryAuditRequest:
+    properties:
+      action:
+        type: string
+      actor_id:
+        type: string
+      occurred_from:
+        type: string
+      occurred_to:
+        type: string
+      page:
+        type: integer
+      page_size:
+        type: integer
+      request_id:
+        type: string
+      resource_id:
+        type: string
+      resource_type:
+        type: string
+      tenant_id:
+        type: string
+    required:
+    - tenant_id
+    type: object
+  httptransport.RecordAuditRequest:
+    type: object
+  httptransport.Response:
+    properties:
+      body: {}
+      code:
+        type: integer
+      message:
+        type: string
+      request_id:
+        type: string
+    type: object
+info:
+  contact: {}
+  description: 'Production-oriented Go Web API scaffold. Application error codes:
+    0 success; 10000-19999 common/input; 20000-29999 authentication/authorization;
+    30000-39999 business; 50000-59999 infrastructure.'
+  title: Go API Template
+  version: "1.0"
+paths:
+  /api/v1/audit/records/create:
+    post:
+      consumes:
+      - application/json
+      parameters:
+      - description: Audit record
+        in: body
+        name: request
+        required: true
+        schema:
+          $ref: '#/definitions/httptransport.RecordAuditRequest'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            allOf:
+            - $ref: '#/definitions/httptransport.Response'
+            - properties:
+                body:
+                  $ref: '#/definitions/audit.Record'
+              type: object
+      security:
+      - Bearer: []
+      summary: Record an immutable business audit entry
+      tags:
+      - audit
+  /api/v1/audit/records/export:
+    post:
+      consumes:
+      - application/json
+      parameters:
+      - description: Audit export filter
+        in: body
+        name: request
+        required: true
+        schema:
+          $ref: '#/definitions/httptransport.ExportAuditRequest'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/httptransport.Response'
+      security:
+      - Bearer: []
+      summary: Export a bounded audit query as CSV
+      tags:
+      - audit
+  /api/v1/audit/records/get:
+    post:
+      parameters:
+      - description: Audit ID
+        in: body
+        name: request
+        required: true
+        schema:
+          $ref: '#/definitions/httptransport.GetAuditRequest'
+      responses:
+        "200":
+          description: OK
+          schema:
+            allOf:
+            - $ref: '#/definitions/httptransport.Response'
+            - properties:
+                body:
+                  $ref: '#/definitions/audit.Record'
+              type: object
+      security:
+      - Bearer: []
+      summary: Get an audit record
+      tags:
+      - audit
+  /api/v1/audit/records/query:
+    post:
+      parameters:
+      - description: Audit filter
+        in: body
+        name: request
+        required: true
+        schema:
+          $ref: '#/definitions/httptransport.QueryAuditRequest'
+      responses:
+        "200":
+          description: OK
+          schema:
+            allOf:
+            - $ref: '#/definitions/httptransport.Response'
+            - properties:
+                body:
+                  $ref: '#/definitions/audit.Page'
+              type: object
+      security:
+      - Bearer: []
+      summary: Query audit records
+      tags:
+      - audit
+  /api/v1/me:
+    post:
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            allOf:
+            - $ref: '#/definitions/httptransport.Response'
+            - properties:
+                body:
+                  $ref: '#/definitions/httptransport.MeResponseBody'
+              type: object
+        "401":
+          description: 'Code 20001: unauthorized'
+          schema:
+            $ref: '#/definitions/httptransport.Response'
+      security:
+      - Bearer: []
+      summary: Return the authenticated subject
+      tags:
+      - authentication
+  /api/v1/version:
+    post:
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            allOf:
+            - $ref: '#/definitions/httptransport.Response'
+            - properties:
+                body:
+                  $ref: '#/definitions/buildinfo.Info'
+              type: object
+      summary: Return build and runtime version information
+      tags:
+      - operations
+  /live:
+    post:
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            allOf:
+            - $ref: '#/definitions/httptransport.Response'
+            - properties:
+                body:
+                  $ref: '#/definitions/health.Status'
+              type: object
+      summary: Check process liveness
+      tags:
+      - operations
+  /ready:
+    post:
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            allOf:
+            - $ref: '#/definitions/httptransport.Response'
+            - properties:
+                body:
+                  $ref: '#/definitions/health.Status'
+              type: object
+        "503":
+          description: 'Code 50003: dependency unavailable'
+          schema:
+            allOf:
+            - $ref: '#/definitions/httptransport.Response'
+            - properties:
+                body:
+                  $ref: '#/definitions/health.Status'
+              type: object
+      summary: Check database and Redis readiness
+      tags:
+      - operations
+schemes:
+- http
+- https
+securityDefinitions:
+  Bearer:
+    description: Enter "Bearer {JWT}".
+    in: header
+    name: Authorization
+    type: apiKey
+  PSK:
+    description: Enter "PSK {shared-key}" for routes configured with PSK authentication.
+    in: header
+    name: Authorization
+    type: apiKey
+swagger: "2.0"

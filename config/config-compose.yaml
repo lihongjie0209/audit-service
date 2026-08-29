@@ -1,0 +1,14 @@
+app:
+  env: compose
+log:
+  level: debug
+  file: /app/logs/app.log
+swagger:
+  enabled: true
+database:
+  name: platform
+  schema: audit
+grpc:
+  reflection_enabled: true
+cron:
+  enabled: true
