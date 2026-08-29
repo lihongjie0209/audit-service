@@ -119,8 +119,8 @@ idempotency:
 event_bus:
   enabled: false
   urls: [nats://127.0.0.1:4222]
-  stream_name: SERVICE_EVENTS
-  subjects: [service.>]
+  stream_name: PLATFORM_EVENTS
+  subjects: [platform.>]
   storage: file
   max_age: 168h
   duplicate_window: 10m

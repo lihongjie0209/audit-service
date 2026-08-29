@@ -579,7 +579,55 @@ const docTemplate = `{
             }
         },
         "httptransport.RecordAuditRequest": {
-            "type": "object"
+            "type": "object",
+            "required": [
+                "action",
+                "resource_id",
+                "resource_type",
+                "source_service",
+                "tenant_id"
+            ],
+            "properties": {
+                "action": {
+                    "type": "string"
+                },
+                "actor_id": {
+                    "type": "string"
+                },
+                "actor_type": {
+                    "type": "string"
+                },
+                "after_summary": {
+                    "type": "object"
+                },
+                "before_summary": {
+                    "type": "object"
+                },
+                "id": {
+                    "type": "string"
+                },
+                "occurred_at": {
+                    "type": "string"
+                },
+                "request_id": {
+                    "type": "string"
+                },
+                "resource_id": {
+                    "type": "string"
+                },
+                "resource_type": {
+                    "type": "string"
+                },
+                "source_service": {
+                    "type": "string"
+                },
+                "tenant_id": {
+                    "type": "string"
+                },
+                "trace_id": {
+                    "type": "string"
+                }
+            }
         },
         "httptransport.Response": {
             "type": "object",

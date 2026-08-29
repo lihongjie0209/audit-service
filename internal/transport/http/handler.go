@@ -34,8 +34,8 @@ type RecordAuditRequest struct {
 	RequestID     string          `json:"request_id"`
 	TraceID       string          `json:"trace_id"`
 	SourceService string          `json:"source_service" binding:"required"`
-	BeforeSummary json.RawMessage `json:"before_summary"`
-	AfterSummary  json.RawMessage `json:"after_summary"`
+	BeforeSummary json.RawMessage `json:"before_summary" swaggertype:"object"`
+	AfterSummary  json.RawMessage `json:"after_summary" swaggertype:"object"`
 	OccurredAt    time.Time       `json:"occurred_at"`
 }
 type GetAuditRequest struct {
