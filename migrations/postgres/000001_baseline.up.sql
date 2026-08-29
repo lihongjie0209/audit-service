@@ -1,0 +1,1 @@
+-- This service owns no tables in the baseline migration.\nSELECT 1;
