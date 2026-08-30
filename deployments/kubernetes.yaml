@@ -36,8 +36,14 @@ kind: Deployment
 metadata:
   name: audit-service
   namespace: audit-service
+  annotations:
+    platform.swagger/enabled: "true"
+    platform.swagger/port: http
+    platform.swagger/path: /swagger/doc.json
+    platform.swagger/title: audit-service
   labels:
     app.kubernetes.io/name: audit-service
+    platform.swagger/enabled: "true"
 spec:
   replicas: 2
   revisionHistoryLimit: 5
@@ -196,6 +202,12 @@ spec:
   ingress:
     - from:
         - podSelector: {}
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: platform
+          podSelector:
+            matchLabels:
+              app.kubernetes.io/name: swagger-service
       ports:
         - {port: 8080, protocol: TCP}
         - {port: 9090, protocol: TCP}
