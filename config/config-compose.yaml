@@ -10,5 +10,12 @@ database:
   schema: audit
 grpc:
   reflection_enabled: true
+auth:
+  # Reflection is reachable only on the internal Compose network. Production
+  # should protect it with mTLS/PSK and NetworkPolicy when dynamic scheduling is used.
+  skip_grpc_methods:
+    - /grpc.health.v1.Health/*
+    - /grpc.reflection.v1.ServerReflection/ServerReflectionInfo
+    - /grpc.reflection.v1alpha.ServerReflection/ServerReflectionInfo
 cron:
   enabled: true
