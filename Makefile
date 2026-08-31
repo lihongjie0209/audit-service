@@ -1,4 +1,4 @@
-.PHONY: run build docker-build test test-race test-integration lint fmt proto proto-lint proto-breaking proto-check swagger swagger-check migrate-up migrate-down dev-up dev-down dev-logs
+.PHONY: run build docker-build test test-race test-integration ci-test-integration lint fmt swagger swagger-check migrate-up migrate-down dev-up dev-down dev-logs
 
 VERSION ?= $(shell git describe --tags --always --dirty 2>/dev/null || echo dev)
 COMMIT ?= $(shell git rev-parse HEAD 2>/dev/null || echo unknown)
@@ -54,18 +54,6 @@ swagger:
 
 swagger-check:
 	@tmp_dir=$$(mktemp -d); trap 'rm -rf "$$tmp_dir"' EXIT; cp -R docs "$$tmp_dir/docs"; $(MAKE) swagger; diff -ru "$$tmp_dir/docs" docs
-
-proto:
-	buf generate
-
-proto-lint:
-	buf lint
-
-proto-breaking:
-	buf breaking --against '.git#ref=HEAD^' --against-config buf.yaml
-
-proto-check: proto-lint proto
-	git diff --exit-code -- gen
 
 migrate-up:
 	go run ./cmd/migrate -direction up

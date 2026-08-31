@@ -44,22 +44,6 @@ jobs:
           args: ./...
       - name: Verify generated Swagger
         run: go run github.com/swaggo/swag/cmd/swag@v1.16.6 init -g cmd/api/main.go -o docs --parseInternal && git diff --exit-code -- docs
-      - uses: bufbuild/buf-setup-action@v1
-        with:
-          version: "1.50.0"
-          github_token: ${{ secrets.GITHUB_TOKEN }}
-      - name: Verify protobuf contracts and generated code
-        env:
-          BASE_REF: ${{ github.base_ref }}
-        run: |
-          go install google.golang.org/protobuf/cmd/protoc-gen-go@v1.36.12
-          go install google.golang.org/grpc/cmd/protoc-gen-go-grpc@v1.5.1
-          if [ "$GITHUB_EVENT_NAME" = "pull_request" ]; then
-            buf breaking --against ".git#branch=origin/$BASE_REF" --against-config buf.yaml
-          elif git rev-parse HEAD^ >/dev/null 2>&1; then
-            buf breaking --against '.git#ref=HEAD^' --against-config buf.yaml
-          fi
-          make proto-check
       - name: Validate Kubernetes manifests
         run: go run github.com/yannh/kubeconform/cmd/kubeconform@v0.7.0 -strict -summary deployments/*.yaml
 

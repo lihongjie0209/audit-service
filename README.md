@@ -61,22 +61,7 @@ Replace the example values through your secret manager in production. The Networ
 
 ## Shared gRPC contracts
 
-Protobuf definitions are governed by Buf through `buf.yaml` and reproducible generation settings in `buf.gen.yaml`. Run `make proto-lint`, `make proto-breaking`, and `make proto`; CI rejects incompatible schema changes and generated-code drift.
-
-For multiple production services, move `proto/` plus the two Buf configuration files into a dedicated contracts repository such as `company-apis`. Producers own API review and publish immutable Buf Schema Registry labels/tags; Go and non-Go consumers depend on a pinned generated SDK version instead of copying `.proto` or generated files. The lifecycle should be: propose schema change, lint and breaking check, review, publish contract version, upgrade consumers, then deploy the compatible producer.
-
-```text
-company-apis (single source of truth)
-  └── proto/<domain>/<service>/v1/*.proto
-          │ buf push + immutable label/tag
-          ▼
-Buf Schema Registry / generated SDKs
-          ├── producer: pinned Go module
-          ├── Go consumer: pinned Go module
-          └── other languages: pinned native package
-```
-
-Never reuse deleted field numbers or names: mark them `reserved`. Introduce breaking contracts under a new package such as `orders.v2`, and keep `v1` available until consumers have migrated. The module name in this template is `buf.build/lihongjie0209/audit-service`; publishing it requires a matching BSR account/module and a `BUF_TOKEN` secret. For an internal installation, replace the module name with the organization's BSR module.
+Business gRPC definitions come only from the released `platform-protos` module. This service does not own local Proto or generated stubs; lint, breaking checks, generation, and release happen in the central contract repository.
 
 All nested config keys can be overridden with `APP_` environment variables: `database.name` becomes `APP_DATABASE_NAME` and `database.dsn` becomes `APP_DATABASE_DSN`. Environment values override the YAML file. Keep secrets out of YAML and source control.
 
@@ -173,9 +158,8 @@ curl -H "Authorization: Bearer $APP_OBSERVABILITY_PPROF_TOKEN" http://127.0.0.1:
 
 ## gRPC server and client
 
-The gRPC server listens independently on `127.0.0.1:9090` and is managed by the same Fx lifecycle. The versioned contract is under `proto/hello/v1`; generated clients and servers are checked in under `gen/hello/v1`.
+The gRPC server listens independently on `127.0.0.1:9090`, is managed by the same Fx lifecycle, and implements its released central `platform.audit.v1` contract.
 
-- `hello.v1.HelloService/Ping`: authenticated example RPC
 - `hello.v1.UserService/*`: CRUD RPCs backed by the same service as HTTP
 - `grpc.health.v1.Health/Check`: unauthenticated standard readiness check
 - JWT is passed as `authorization: Bearer <token>` metadata
@@ -183,7 +167,7 @@ The gRPC server listens independently on `127.0.0.1:9090` and is managed by the 
 - reflection is enabled for development and forbidden in production
 - production configuration requires TLS; setting `client_ca_file` enables mTLS
 
-Regenerate protobuf code with `make proto`. CI fails if generated stubs drift from the proto source. For outbound calls, use `internal/grpcclient.Dial`; it reuses the HTTP/2 connection, applies a default deadline, supports TLS/mTLS and refuses to send bearer credentials over plaintext unless explicitly allowed for development.
+For outbound calls, use `internal/grpcclient.Dial`; it reuses the HTTP/2 connection, applies a default deadline, supports TLS/mTLS and refuses to send bearer credentials over plaintext unless explicitly allowed for development.
 
 ```go
 conn, err := grpcclient.Dial(grpcclient.Config{
@@ -195,8 +179,6 @@ conn, err := grpcclient.Dial(grpcclient.Config{
 if err != nil { /* handle */ }
 defer conn.Close()
 
-client := hellov1.NewHelloServiceClient(conn)
-response, err := client.Ping(ctx, &hellov1.PingRequest{Message: "hello"})
 ```
 
 For a PSK-protected upstream, set `PSK` instead of `Token`; the client sends `Authorization: PSK <key>`. Bearer and PSK are mutually exclusive and both require TLS by default.
