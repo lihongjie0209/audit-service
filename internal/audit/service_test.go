@@ -12,13 +12,27 @@ import (
 	"github.com/lihongjie0209/audit-service/internal/principal"
 )
 
-type fakeRepository struct{ record Record }
+type fakeRepository struct {
+	record    Record
+	createErr error
+	getErrs   []error
+}
 
 func (f *fakeRepository) Create(_ context.Context, _ sqlx.ExtContext, value Record) error {
+	if f.createErr != nil {
+		return f.createErr
+	}
 	f.record = value
 	return nil
 }
-func (f *fakeRepository) Get(_ context.Context, _, _ string) (Record, error) { return f.record, nil }
+func (f *fakeRepository) Get(_ context.Context, _, _ string) (Record, error) {
+	if len(f.getErrs) > 0 {
+		err := f.getErrs[0]
+		f.getErrs = f.getErrs[1:]
+		return f.record, err
+	}
+	return f.record, nil
+}
 func (f *fakeRepository) Query(_ context.Context, _ Filter) ([]Record, int64, error) {
 	return []Record{f.record}, 1, nil
 }
@@ -56,6 +70,27 @@ func TestServiceRecordRejectsInvalidJSON(t *testing.T) {
 	ctx := principal.WithContext(t.Context(), principal.Principal{Subject: "admin-1", Method: principal.AuthenticationJWT})
 	if _, err := service.Record(ctx, Record{TenantID: "tenant-1", Action: "updated", ResourceType: "user", ResourceID: "user-1", SourceService: "identity-service", BeforeSummary: []byte(`{"password":`)}); err == nil {
 		t.Fatal("Record() accepted invalid JSON")
+	}
+}
+
+func TestServiceRecordTreatsConcurrentDuplicateEventAsSuccess(t *testing.T) {
+	db, mock, err := sqlmock.New()
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() { _ = db.Close() })
+	mock.ExpectBegin()
+	mock.ExpectRollback()
+	existing := Record{ID: "event-1", TenantID: "tenant-1", Action: "user.updated", ResourceType: "user", ResourceID: "user-1", SourceService: "identity-service", Version: 1}
+	repository := &fakeRepository{record: existing, createErr: ErrDuplicate, getErrs: []error{ErrNotFound, nil}}
+	service := NewService(repository, database.NewTransactor(sqlx.NewDb(db, "sqlmock")))
+	ctx := principal.WithContext(t.Context(), principal.Principal{Subject: "audit-event-consumer", Method: principal.AuthenticationPSK})
+	replayed, err := service.Record(ctx, existing)
+	if err != nil || replayed.ID != existing.ID {
+		t.Fatalf("replayed=%+v err=%v", replayed, err)
+	}
+	if err := mock.ExpectationsWereMet(); err != nil {
+		t.Fatal(err)
 	}
 }
 
