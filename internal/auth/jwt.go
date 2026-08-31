@@ -11,8 +11,8 @@ import (
 
 	"github.com/golang-jwt/jwt/v5"
 	"github.com/lihongjie0209/audit-service/internal/config"
-	"github.com/lihongjie0209/audit-service/internal/principal"
 	"github.com/lihongjie0209/microservice-platform-go/authn"
+	platformprincipal "github.com/lihongjie0209/microservice-platform-go/principal"
 	"go.uber.org/fx"
 )
 
@@ -39,19 +39,15 @@ func NewRuntime(lc fx.Lifecycle, cfg config.Config) (*Service, error) {
 	lc.Append(fx.StopHook(func() { v.Close() }))
 	return s, nil
 }
-func (s *Service) Verify(ctx context.Context, raw string) (principal.Principal, error) {
+func (s *Service) Verify(ctx context.Context, raw string) (platformprincipal.Principal, error) {
 	if s.verifier != nil {
-		p, err := s.verifier.VerifyBearer(ctx, raw)
-		if err != nil {
-			return principal.Principal{}, err
-		}
-		return principal.Principal{Subject: p.ID, Method: principal.AuthenticationJWT}, nil
+		return s.verifier.VerifyBearer(ctx, raw)
 	}
 	claims, err := s.Parse(raw)
 	if err != nil {
-		return principal.Principal{}, err
+		return platformprincipal.Principal{}, err
 	}
-	return principal.Principal{Subject: claims.Subject, Method: principal.AuthenticationJWT}, nil
+	return platformprincipal.Principal{ID: claims.Subject, Type: platformprincipal.TypeUser}, nil
 }
 
 func New(cfg config.Config) *Service {

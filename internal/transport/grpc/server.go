@@ -20,8 +20,8 @@ import (
 	apphealth "github.com/lihongjie0209/audit-service/internal/health"
 	"github.com/lihongjie0209/audit-service/internal/idempotency"
 	"github.com/lihongjie0209/audit-service/internal/observability"
-	"github.com/lihongjie0209/audit-service/internal/principal"
 	"github.com/lihongjie0209/audit-service/internal/requestid"
+	platformprincipal "github.com/lihongjie0209/microservice-platform-go/principal"
 
 	auditv1 "github.com/lihongjie0209/platform-protos/gen/go/platform/audit/v1"
 	commonv1 "github.com/lihongjie0209/platform-protos/gen/go/platform/common/v1"
@@ -198,6 +198,10 @@ func grpcError(err error) error {
 	switch appErr.Code {
 	case apperror.CodeInvalidArgument:
 		code = codes.InvalidArgument
+	case apperror.CodeUnauthorized:
+		code = codes.Unauthenticated
+	case apperror.CodeForbidden:
+		code = codes.PermissionDenied
 	case apperror.CodeNotFound:
 		code = codes.NotFound
 	case apperror.CodeConflict:
@@ -263,7 +267,7 @@ func authenticateGRPC(ctx context.Context, method string, service *auth.Service,
 		if len(values) == 0 || !auth.VerifyPSK(values[0], cfg.PSK.Key) {
 			return nil, status.Error(codes.Unauthenticated, "missing or invalid PSK")
 		}
-		return principal.WithContext(ctx, principal.Principal{Subject: "psk", Method: principal.AuthenticationPSK}), nil
+		return platformprincipal.WithContext(ctx, platformprincipal.Principal{ID: "audit-service:psk", Type: platformprincipal.TypeServiceAccount}), nil
 	}
 	if auth.MatchesAny(method, cfg.SkipGRPCMethods) {
 		return ctx, nil
@@ -279,7 +283,7 @@ func authenticateGRPC(ctx context.Context, method string, service *auth.Service,
 	if err != nil {
 		return nil, status.Error(codes.Unauthenticated, "invalid or expired token")
 	}
-	return principal.WithContext(ctx, caller), nil
+	return platformprincipal.WithContext(ctx, caller), nil
 }
 
 type contextServerStream struct {

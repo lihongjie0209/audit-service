@@ -10,8 +10,8 @@ import (
 
 	auditdomain "github.com/lihongjie0209/audit-service/internal/audit"
 	"github.com/lihongjie0209/audit-service/internal/config"
-	"github.com/lihongjie0209/audit-service/internal/principal"
 	"github.com/lihongjie0209/microservice-platform-go/eventbus"
+	platformprincipal "github.com/lihongjie0209/microservice-platform-go/principal"
 	commonv1 "github.com/lihongjie0209/platform-protos/gen/go/platform/common/v1"
 	"go.uber.org/fx"
 )
@@ -68,7 +68,7 @@ func (r *auditEventRuntime) consume(ctx context.Context, envelope *commonv1.Even
 	if requestContext != nil {
 		record.ActorID, record.ActorType, record.RequestID, record.TraceID = requestContext.GetActorId(), requestContext.GetActorType(), requestContext.GetRequestId(), requestContext.GetTraceId()
 	}
-	_, err = r.service.Record(principal.WithContext(ctx, principal.Principal{Subject: "audit-event-consumer", Method: principal.AuthenticationPSK}), record)
+	_, err = r.service.Record(platformprincipal.SystemContext(ctx, "audit-event-consumer"), record)
 	return err
 }
 

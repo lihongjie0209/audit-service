@@ -3,13 +3,15 @@ package audit
 import (
 	"bytes"
 	"context"
+	"errors"
 	"testing"
 	"time"
 
 	"github.com/DATA-DOG/go-sqlmock"
 	"github.com/jmoiron/sqlx"
+	"github.com/lihongjie0209/audit-service/internal/apperror"
 	"github.com/lihongjie0209/audit-service/internal/database"
-	"github.com/lihongjie0209/audit-service/internal/principal"
+	platformprincipal "github.com/lihongjie0209/microservice-platform-go/principal"
 )
 
 type fakeRepository struct {
@@ -49,7 +51,7 @@ func TestServiceRecordInjectsAuditAndRedactsSecrets(t *testing.T) {
 	service := NewService(repository, database.NewTransactor(sqlx.NewDb(db, "sqlmock")))
 	now := time.Date(2026, 8, 30, 8, 0, 0, 0, time.FixedZone("UTC+8", 8*60*60))
 	service.now = func() time.Time { return now }
-	ctx := principal.WithContext(t.Context(), principal.Principal{Subject: "admin-1", Method: principal.AuthenticationJWT})
+	ctx := platformprincipal.WithContext(t.Context(), platformprincipal.Principal{ID: "admin-1", Type: platformprincipal.TypeUser, TenantID: "tenant-1"})
 	created, err := service.Record(ctx, Record{TenantID: "tenant-1", Action: "user.updated", ResourceType: "user", ResourceID: "user-1", SourceService: "identity-service", BeforeSummary: []byte(`{"password":"old"}`), AfterSummary: []byte(`{"password":"new","name":"Alice"}`)})
 	if err != nil {
 		t.Fatal(err)
@@ -67,7 +69,7 @@ func TestServiceRecordInjectsAuditAndRedactsSecrets(t *testing.T) {
 
 func TestServiceRecordRejectsInvalidJSON(t *testing.T) {
 	service := NewService(&fakeRepository{}, &database.Transactor{})
-	ctx := principal.WithContext(t.Context(), principal.Principal{Subject: "admin-1", Method: principal.AuthenticationJWT})
+	ctx := platformprincipal.WithContext(t.Context(), platformprincipal.Principal{ID: "admin-1", Type: platformprincipal.TypeUser, TenantID: "tenant-1"})
 	if _, err := service.Record(ctx, Record{TenantID: "tenant-1", Action: "updated", ResourceType: "user", ResourceID: "user-1", SourceService: "identity-service", BeforeSummary: []byte(`{"password":`)}); err == nil {
 		t.Fatal("Record() accepted invalid JSON")
 	}
@@ -84,7 +86,7 @@ func TestServiceRecordTreatsConcurrentDuplicateEventAsSuccess(t *testing.T) {
 	existing := Record{ID: "event-1", TenantID: "tenant-1", Action: "user.updated", ResourceType: "user", ResourceID: "user-1", SourceService: "identity-service", Version: 1}
 	repository := &fakeRepository{record: existing, createErr: ErrDuplicate, getErrs: []error{ErrNotFound, nil}}
 	service := NewService(repository, database.NewTransactor(sqlx.NewDb(db, "sqlmock")))
-	ctx := principal.WithContext(t.Context(), principal.Principal{Subject: "audit-event-consumer", Method: principal.AuthenticationPSK})
+	ctx := platformprincipal.SystemContext(t.Context(), "audit-event-consumer")
 	replayed, err := service.Record(ctx, existing)
 	if err != nil || replayed.ID != existing.ID {
 		t.Fatalf("replayed=%+v err=%v", replayed, err)
@@ -100,9 +102,19 @@ func TestExportRequiresActorAndNeutralizesSpreadsheetFormula(t *testing.T) {
 	if _, _, err := service.Export(t.Context(), Filter{TenantID: "tenant-1"}, 100); err == nil {
 		t.Fatal("Export accepted missing principal")
 	}
-	ctx := principal.WithContext(t.Context(), principal.Principal{Subject: "auditor-1"})
+	ctx := platformprincipal.WithContext(t.Context(), platformprincipal.Principal{ID: "auditor-1", Type: platformprincipal.TypeUser, TenantID: "tenant-1"})
 	content, count, err := service.Export(ctx, Filter{TenantID: "tenant-1"}, 100)
 	if err != nil || count != 1 || !bytes.Contains(content, []byte(`'=HYPERLINK`)) {
 		t.Fatalf("content=%s count=%d err=%v", content, count, err)
+	}
+}
+
+func TestQueryRejectsTenantOutsideJWTContext(t *testing.T) {
+	service := NewService(&fakeRepository{}, &database.Transactor{})
+	ctx := platformprincipal.WithContext(t.Context(), platformprincipal.Principal{ID: "auditor-1", Type: platformprincipal.TypeUser, TenantID: "tenant-1"})
+	_, err := service.Query(ctx, Filter{TenantID: "tenant-2"})
+	var appErr *apperror.Error
+	if !errors.As(err, &appErr) || appErr.Code != apperror.CodeForbidden {
+		t.Fatalf("Query() error = %v, want forbidden", err)
 	}
 }

@@ -57,6 +57,9 @@ func RequestInProgress() *Error {
 func Unauthorized(message string) *Error {
 	return New(CodeUnauthorized, message, http.StatusUnauthorized, nil)
 }
+func Forbidden(message string) *Error {
+	return New(CodeForbidden, message, http.StatusForbidden, nil)
+}
 func TooManyRequests() *Error {
 	return New(CodeTooManyRequests, "too many requests", http.StatusTooManyRequests, nil)
 }

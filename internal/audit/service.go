@@ -13,7 +13,7 @@ import (
 	"github.com/jmoiron/sqlx"
 	"github.com/lihongjie0209/audit-service/internal/apperror"
 	"github.com/lihongjie0209/audit-service/internal/database"
-	"github.com/lihongjie0209/audit-service/internal/principal"
+	platformprincipal "github.com/lihongjie0209/microservice-platform-go/principal"
 	"github.com/lihongjie0209/microservice-platform-go/redact"
 	"go.uber.org/fx"
 )
@@ -34,9 +34,12 @@ func (s *Service) Record(ctx context.Context, value Record) (Record, error) {
 	if value.Action == "" || value.ResourceType == "" || value.ResourceID == "" || value.SourceService == "" {
 		return Record{}, apperror.Invalid("action, resource_type, resource_id and source_service are required", nil)
 	}
-	caller, ok := principal.FromContext(ctx)
+	caller, ok := platformprincipal.FromContext(ctx)
 	if !ok {
 		return Record{}, apperror.Unauthorized("authenticated actor is required")
+	}
+	if err := enforceTenant(caller, value.TenantID); err != nil {
+		return Record{}, err
 	}
 	before, err := redact.JSON(value.BeforeSummary)
 	if err != nil {
@@ -55,13 +58,13 @@ func (s *Service) Record(ctx context.Context, value Record) (Record, error) {
 		return Record{}, apperror.Internal(getErr)
 	}
 	if value.ActorID == "" {
-		value.ActorID, value.ActorType = caller.Subject, string(caller.Method)
+		value.ActorID, value.ActorType = caller.ID, string(caller.Type)
 	}
 	if value.OccurredAt.IsZero() {
 		value.OccurredAt = now
 	}
 	value.BeforeSummary, value.AfterSummary = before, after
-	value.Version, value.CreatedAt, value.UpdatedAt, value.CreatedBy, value.UpdatedBy = 1, now, now, caller.Subject, caller.Subject
+	value.Version, value.CreatedAt, value.UpdatedAt, value.CreatedBy, value.UpdatedBy = 1, now, now, caller.ID, caller.ID
 	err = s.transactor.Within(ctx, nil, func(tx *sqlx.Tx) error { return s.repository.Create(ctx, tx, value) })
 	if errors.Is(err, ErrDuplicate) {
 		existing, getErr := s.repository.Get(ctx, value.ID, value.TenantID)
@@ -76,8 +79,12 @@ func (s *Service) Record(ctx context.Context, value Record) (Record, error) {
 }
 
 func (s *Service) Get(ctx context.Context, id, tenantID string) (Record, error) {
-	if _, ok := principal.FromContext(ctx); !ok {
+	caller, ok := platformprincipal.FromContext(ctx)
+	if !ok {
 		return Record{}, apperror.Unauthorized("authenticated actor is required")
+	}
+	if err := enforceTenant(caller, tenantID); err != nil {
+		return Record{}, err
 	}
 	value, err := s.repository.Get(ctx, strings.TrimSpace(id), strings.TrimSpace(tenantID))
 	if errors.Is(err, ErrNotFound) {
@@ -90,11 +97,15 @@ func (s *Service) Get(ctx context.Context, id, tenantID string) (Record, error) 
 }
 
 func (s *Service) Query(ctx context.Context, filter Filter) (Page, error) {
-	if _, ok := principal.FromContext(ctx); !ok {
+	caller, ok := platformprincipal.FromContext(ctx)
+	if !ok {
 		return Page{}, apperror.Unauthorized("authenticated actor is required")
 	}
 	if strings.TrimSpace(filter.TenantID) == "" {
 		return Page{}, apperror.Invalid("tenant_id is required", nil)
+	}
+	if err := enforceTenant(caller, filter.TenantID); err != nil {
+		return Page{}, err
 	}
 	if filter.Page <= 0 {
 		filter.Page = 1
@@ -110,6 +121,13 @@ func (s *Service) Query(ctx context.Context, filter Filter) (Page, error) {
 		return Page{}, apperror.Internal(err)
 	}
 	return Page{Records: values, Total: total, Page: filter.Page, PageSize: filter.PageSize}, nil
+}
+
+func enforceTenant(caller platformprincipal.Principal, requestedTenantID string) error {
+	if caller.Type == platformprincipal.TypeUser && (strings.TrimSpace(caller.TenantID) == "" || caller.TenantID != strings.TrimSpace(requestedTenantID)) {
+		return apperror.Forbidden("tenant access denied")
+	}
+	return nil
 }
 
 func (s *Service) Export(ctx context.Context, filter Filter, maxRecords int) ([]byte, int64, error) {
