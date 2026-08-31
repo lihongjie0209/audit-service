@@ -73,7 +73,7 @@ func TestHTTPAndGRPCEndToEnd(t *testing.T) {
 		Health:        config.Health{DatabaseTimeout: 2 * time.Second, RedisTimeout: 2 * time.Second},
 		Observability: config.Observability{MetricsEnabled: true},
 		JWT:           config.JWT{Issuer: "integration", Secret: secret, TTL: time.Hour},
-		Auth:          config.Auth{ClientID: "client", ClientSecret: "secret", SkipHTTPPaths: []string{"/api/v1/version"}, SkipGRPCMethods: []string{"/grpc.health.v1.Health/*"}, PSK: config.PSK{Enabled: true, Key: secret, GRPCMethods: []string{"/platform.audit.v1.AuditService/*"}}},
+		Auth:          config.Auth{ClientID: "client", ClientSecret: "secret", SkipHTTPPaths: []string{"/api/v1/version"}, SkipGRPCMethods: []string{"/grpc.health.v1.Health/*"}, PSK: config.PSK{Enabled: true, Key: secret, HTTPPaths: []string{"/api/v1/audit/records/*"}, GRPCMethods: []string{"/platform.audit.v1.AuditService/*"}}},
 		Cron:          config.Cron{Enabled: false, Timezone: "UTC"},
 		User:          config.User{CacheTTL: time.Minute, LockTTL: 10 * time.Second, LockRetryDelay: 20 * time.Millisecond},
 		Idempotency:   config.Idempotency{Enabled: true, ProcessingTTL: 30 * time.Second, ResultTTL: time.Hour, FailureTTL: time.Minute},
@@ -102,9 +102,9 @@ func TestHTTPAndGRPCEndToEnd(t *testing.T) {
 	createdBody, statusCode := postJSONBody(
 		t,
 		baseURL+"/api/v1/audit/records/create",
-		"Bearer "+token,
+		"PSK "+secret,
 		"audit-create-1",
-		`{"id":"audit-1","tenant_id":"tenant-1","actor_type":"user","action":"invoice.updated","resource_type":"invoice","resource_id":"invoice-1","request_id":"request-1","trace_id":"trace-1","source_service":"billing-service","before_summary":{"status":"draft"},"after_summary":{"status":"published"}}`,
+		`{"id":"73b76e80-31f8-4b85-938d-57760ba54c91","tenant_id":"tenant-1","actor_type":"user","action":"invoice.updated","resource_type":"invoice","resource_id":"invoice-1","request_id":"request-1","trace_id":"trace-1","source_service":"billing-service","before_summary":{"status":"draft"},"after_summary":{"status":"published"}}`,
 	)
 	if statusCode != http.StatusOK || !bytes.Contains(createdBody, []byte(`"before_summary":{"status":"draft"}`)) {
 		t.Fatalf("create audit status=%d body=%s", statusCode, createdBody)
@@ -112,17 +112,17 @@ func TestHTTPAndGRPCEndToEnd(t *testing.T) {
 	queryBody, statusCode := postJSONBody(
 		t,
 		baseURL+"/api/v1/audit/records/query",
-		"Bearer "+token,
+		"PSK "+secret,
 		"",
 		`{"tenant_id":"tenant-1","actor_type":"user","trace_id":"trace-1","source_service":"billing-service","page":1,"page_size":20}`,
 	)
-	if statusCode != http.StatusOK || !bytes.Contains(queryBody, []byte(`"id":"audit-1"`)) {
+	if statusCode != http.StatusOK || !bytes.Contains(queryBody, []byte(`"id":"73b76e80-31f8-4b85-938d-57760ba54c91"`)) {
 		t.Fatalf("query audit status=%d body=%s", statusCode, queryBody)
 	}
 	exportBody, statusCode := postJSONBody(
 		t,
 		baseURL+"/api/v1/audit/records/export",
-		"Bearer "+token,
+		"PSK "+secret,
 		"",
 		`{"tenant_id":"tenant-1","trace_id":"trace-1","source_service":"billing-service","max_records":100}`,
 	)

@@ -52,10 +52,15 @@ func (s *Service) Record(ctx context.Context, value Record) (Record, error) {
 	now := s.now()
 	if value.ID == "" {
 		value.ID = uuid.NewString()
-	} else if existing, getErr := s.repository.Get(ctx, value.ID, value.TenantID); getErr == nil {
-		return existing, nil
-	} else if !errors.Is(getErr, ErrNotFound) {
-		return Record{}, apperror.Internal(getErr)
+	} else {
+		if _, parseErr := uuid.Parse(value.ID); parseErr != nil {
+			return Record{}, apperror.Invalid("id must be a valid UUID", parseErr)
+		}
+		if existing, getErr := s.repository.Get(ctx, value.ID, value.TenantID); getErr == nil {
+			return existing, nil
+		} else if !errors.Is(getErr, ErrNotFound) {
+			return Record{}, apperror.Internal(getErr)
+		}
 	}
 	if value.ActorID == "" {
 		value.ActorID, value.ActorType = caller.ID, string(caller.Type)

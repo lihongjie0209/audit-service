@@ -75,6 +75,17 @@ func TestServiceRecordRejectsInvalidJSON(t *testing.T) {
 	}
 }
 
+func TestServiceRecordRejectsInvalidExplicitUUIDBeforeRepository(t *testing.T) {
+	repository := &fakeRepository{}
+	service := NewService(repository, &database.Transactor{})
+	ctx := platformprincipal.SystemContext(t.Context(), "audit-event-consumer")
+	_, err := service.Record(ctx, Record{ID: "audit-1", TenantID: "tenant-1", Action: "updated", ResourceType: "user", ResourceID: "user-1", SourceService: "identity-service"})
+	var appErr *apperror.Error
+	if !errors.As(err, &appErr) || appErr.Code != apperror.CodeInvalidArgument {
+		t.Fatalf("Record() error = %v, want invalid argument", err)
+	}
+}
+
 func TestServiceRecordTreatsConcurrentDuplicateEventAsSuccess(t *testing.T) {
 	db, mock, err := sqlmock.New()
 	if err != nil {
@@ -83,7 +94,7 @@ func TestServiceRecordTreatsConcurrentDuplicateEventAsSuccess(t *testing.T) {
 	t.Cleanup(func() { _ = db.Close() })
 	mock.ExpectBegin()
 	mock.ExpectRollback()
-	existing := Record{ID: "event-1", TenantID: "tenant-1", Action: "user.updated", ResourceType: "user", ResourceID: "user-1", SourceService: "identity-service", Version: 1}
+	existing := Record{ID: "73b76e80-31f8-4b85-938d-57760ba54c91", TenantID: "tenant-1", Action: "user.updated", ResourceType: "user", ResourceID: "user-1", SourceService: "identity-service", Version: 1}
 	repository := &fakeRepository{record: existing, createErr: ErrDuplicate, getErrs: []error{ErrNotFound, nil}}
 	service := NewService(repository, database.NewTransactor(sqlx.NewDb(db, "sqlmock")))
 	ctx := platformprincipal.SystemContext(t.Context(), "audit-event-consumer")
