@@ -104,7 +104,7 @@ func TestHTTPAndGRPCEndToEnd(t *testing.T) {
 		baseURL+"/api/v1/audit/records/create",
 		"PSK "+secret,
 		"audit-create-1",
-		`{"id":"73b76e80-31f8-4b85-938d-57760ba54c91","tenant_id":"tenant-1","actor_type":"user","action":"invoice.updated","resource_type":"invoice","resource_id":"invoice-1","request_id":"request-1","trace_id":"trace-1","source_service":"billing-service","before_summary":{"status":"draft"},"after_summary":{"status":"published"}}`,
+		`{"id":"73b76e80-31f8-4b85-938d-57760ba54c91","tenant_id":"tenant-1","actor_id":"user-1","actor_type":"user","action":"invoice.updated","resource_type":"invoice","resource_id":"invoice-1","request_id":"request-1","trace_id":"trace-1","source_service":"billing-service","before_summary":{"status":"draft"},"after_summary":{"status":"published"}}`,
 	)
 	if statusCode != http.StatusOK || !bytes.Contains(createdBody, []byte(`"before_summary":{"status":"draft"}`)) {
 		t.Fatalf("create audit status=%d body=%s", statusCode, createdBody)
