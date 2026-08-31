@@ -15,7 +15,6 @@ require (
 	github.com/jackc/pgx/v5 v5.9.2
 	github.com/jmoiron/sqlx v1.4.0
 	github.com/lihongjie0209/platform-protos v0.1.0
-	github.com/nats-io/nats.go v1.53.1
 	github.com/prometheus/client_golang v1.24.1
 	github.com/redis/go-redis/extra/redisotel/v9 v9.22.0
 	github.com/redis/go-redis/v9 v9.22.0
@@ -45,6 +44,7 @@ require (
 require (
 	github.com/MicahParks/jwkset v0.11.1 // indirect
 	github.com/MicahParks/keyfunc/v3 v3.8.1 // indirect
+	github.com/nats-io/nats.go v1.53.1 // indirect
 	golang.org/x/time v0.15.0 // indirect
 )
 
