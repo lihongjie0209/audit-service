@@ -19,13 +19,14 @@ import (
 	"github.com/lihongjie0209/audit-service/internal/health"
 	"github.com/lihongjie0209/audit-service/internal/observability"
 	"github.com/lihongjie0209/audit-service/internal/ratelimit"
+	platformauthz "github.com/lihongjie0209/microservice-platform-go/authz"
 	swaggerFiles "github.com/swaggo/files"
 	ginSwagger "github.com/swaggo/gin-swagger"
 	"go.opentelemetry.io/contrib/instrumentation/github.com/gin-gonic/gin/otelgin"
 	"go.uber.org/fx"
 )
 
-func NewServer(lc fx.Lifecycle, cfg config.Config, handler *Handler, authService *auth.Service, limiter *ratelimit.Limiter, metrics *observability.Metrics, tracing *observability.Tracing, logger *slog.Logger) (*http.Server, error) {
+func NewServer(lc fx.Lifecycle, cfg config.Config, handler *Handler, authService *auth.Service, authorizer platformauthz.Authorizer, limiter *ratelimit.Limiter, metrics *observability.Metrics, tracing *observability.Tracing, logger *slog.Logger) (*http.Server, error) {
 	if cfg.App.Env == "production" {
 		gin.SetMode(gin.ReleaseMode)
 	}
@@ -53,7 +54,7 @@ func NewServer(lc fx.Lifecycle, cfg config.Config, handler *Handler, authService
 		}
 		swagger.GET("/*any", ginSwagger.WrapHandler(swaggerFiles.Handler))
 	}
-	api := router.Group("/api/v1", RateLimit(limiter, cfg.RateLimit.IP, "ip", func(c *gin.Context) string { return c.ClientIP() }, logger), RateLimit(limiter, cfg.RateLimit.API, "api", func(c *gin.Context) string { return c.FullPath() }, logger), Authentication(authService, logger, cfg.Auth), RateLimit(limiter, cfg.RateLimit.User, "user", func(c *gin.Context) string {
+	api := router.Group("/api/v1", RateLimit(limiter, cfg.RateLimit.IP, "ip", func(c *gin.Context) string { return c.ClientIP() }, logger), RateLimit(limiter, cfg.RateLimit.API, "api", func(c *gin.Context) string { return c.FullPath() }, logger), Authentication(authService, logger, cfg.Auth), Authorization(cfg.Authorization.Enabled, authorizer, logger), RateLimit(limiter, cfg.RateLimit.User, "user", func(c *gin.Context) string {
 		value, _ := c.Get("subject")
 		subject, _ := value.(string)
 		return subject

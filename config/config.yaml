@@ -94,6 +94,8 @@ auth:
     key: ""
     http_paths: []
     grpc_methods: []
+authorization:
+  enabled: false
 cron:
   enabled: true
   timezone: Asia/Shanghai
@@ -134,4 +136,11 @@ event_bus:
 # config-{env}.yaml or APP_ variables.
 outbound:
   http: {}
-  grpc: {}
+  grpc:
+    authorization:
+      target: authorization-service:9090
+      timeout: 2s
+      auth: {type: "", token: ""}
+      retry: {max_attempts: 2, initial_backoff: 100ms, max_backoff: 500ms, methods: [/platform.authorization.v1.AuthorizationService/Check]}
+      breaker: {enabled: true, failure_threshold: 5, open_timeout: 30s}
+      tls: {enabled: false, server_name: "", ca_file: "", cert_file: "", key_file: ""}

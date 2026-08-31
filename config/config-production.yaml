@@ -35,3 +35,10 @@ idempotency:
 observability:
   metrics_enabled: true
   tracing_enabled: false
+authorization:
+  enabled: true
+outbound:
+  grpc:
+    authorization:
+      target: authorization-service.platform.svc.cluster.local:9090
+      tls: {enabled: true, server_name: authorization-service.platform.svc.cluster.local, ca_file: /etc/platform/tls/ca.crt, cert_file: /etc/platform/tls/tls.crt, key_file: /etc/platform/tls/tls.key}

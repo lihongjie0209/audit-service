@@ -3,9 +3,38 @@ package config
 import (
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 	"time"
 )
+
+func TestConfig_AuthorizationRequiresConfiguredUpstream(t *testing.T) {
+	cfg, err := Load("../../config/config.yaml")
+	if err != nil {
+		t.Fatal(err)
+	}
+	cfg.Authorization.Enabled = true
+	delete(cfg.Outbound.GRPC, "authorization")
+	if err := cfg.Validate(); err == nil || !strings.Contains(err.Error(), "outbound.grpc.authorization") {
+		t.Fatalf("Validate() error = %v", err)
+	}
+}
+
+func TestConfig_ProductionRequiresAuthorization(t *testing.T) {
+	cfg, err := Load("../../config/config.yaml")
+	if err != nil {
+		t.Fatal(err)
+	}
+	cfg.App.Env = "production"
+	cfg.GRPC.Enabled = false
+	cfg.GRPC.ReflectionEnabled = false
+	cfg.Swagger.RequireAuth = true
+	cfg.Auth.JWKSURL = "https://identity.example.test/.well-known/jwks.json"
+	cfg.Authorization.Enabled = false
+	if err := cfg.Validate(); err == nil || !strings.Contains(err.Error(), "authorization must be enabled") {
+		t.Fatalf("Validate() error = %v", err)
+	}
+}
 
 func TestLoad_EnvironmentOverridesFile(t *testing.T) {
 	dir := t.TempDir()

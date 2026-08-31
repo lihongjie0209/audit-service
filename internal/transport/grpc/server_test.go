@@ -8,10 +8,24 @@ import (
 	"github.com/lihongjie0209/audit-service/internal/auth"
 	"github.com/lihongjie0209/audit-service/internal/config"
 	platformprincipal "github.com/lihongjie0209/microservice-platform-go/principal"
+	auditv1 "github.com/lihongjie0209/platform-protos/gen/go/platform/audit/v1"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/metadata"
 	"google.golang.org/grpc/status"
 )
+
+func TestAuditGRPCRequirementCoversEveryBusinessMethod(t *testing.T) {
+	t.Parallel()
+	resolve := auditGRPCRequirement(true)
+	for _, method := range []string{auditv1.AuditService_Record_FullMethodName, auditv1.AuditService_Get_FullMethodName, auditv1.AuditService_Query_FullMethodName, auditv1.AuditService_Export_FullMethodName} {
+		if requirement, ok := resolve(method); !ok || requirement.Resource == "" || requirement.Action == "" {
+			t.Fatalf("method %q requirement = %+v, %v", method, requirement, ok)
+		}
+	}
+	if _, ok := auditGRPCRequirement(false)(auditv1.AuditService_Query_FullMethodName); ok {
+		t.Fatal("disabled authorization must not enforce")
+	}
+}
 
 func TestGRPCErrorMapsAuthenticationAndTenantDenial(t *testing.T) {
 	t.Parallel()
