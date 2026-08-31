@@ -1,61 +1,5 @@
 basePath: /
 definitions:
-  audit.Page:
-    properties:
-      page:
-        type: integer
-      page_size:
-        type: integer
-      records:
-        items:
-          $ref: '#/definitions/audit.Record'
-        type: array
-      total:
-        type: integer
-    type: object
-  audit.Record:
-    properties:
-      action:
-        type: string
-      actor_id:
-        type: string
-      actor_type:
-        type: string
-      after_summary:
-        items:
-          type: integer
-        type: array
-      before_summary:
-        items:
-          type: integer
-        type: array
-      created_at:
-        type: string
-      created_by:
-        type: string
-      id:
-        type: string
-      occurred_at:
-        type: string
-      request_id:
-        type: string
-      resource_id:
-        type: string
-      resource_type:
-        type: string
-      source_service:
-        type: string
-      tenant_id:
-        type: string
-      trace_id:
-        type: string
-      updated_at:
-        type: string
-      updated_by:
-        type: string
-      version:
-        type: integer
-    type: object
   buildinfo.Info:
     properties:
       build_time:
@@ -85,11 +29,65 @@ definitions:
       status:
         type: string
     type: object
+  httptransport.AuditPageResponseBody:
+    properties:
+      page:
+        type: integer
+      page_size:
+        type: integer
+      records:
+        items:
+          $ref: '#/definitions/httptransport.AuditRecordResponseBody'
+        type: array
+      total:
+        type: integer
+    type: object
+  httptransport.AuditRecordResponseBody:
+    properties:
+      action:
+        type: string
+      actor_id:
+        type: string
+      actor_type:
+        type: string
+      after_summary:
+        type: object
+      before_summary:
+        type: object
+      created_at:
+        type: string
+      created_by:
+        type: string
+      id:
+        type: string
+      occurred_at:
+        type: string
+      request_id:
+        type: string
+      resource_id:
+        type: string
+      resource_type:
+        type: string
+      source_service:
+        type: string
+      tenant_id:
+        type: string
+      trace_id:
+        type: string
+      updated_at:
+        type: string
+      updated_by:
+        type: string
+      version:
+        type: integer
+    type: object
   httptransport.ExportAuditRequest:
     properties:
       action:
         type: string
       actor_id:
+        type: string
+      actor_type:
         type: string
       max_records:
         type: integer
@@ -107,10 +105,25 @@ definitions:
         type: string
       resource_type:
         type: string
+      source_service:
+        type: string
       tenant_id:
+        type: string
+      trace_id:
         type: string
     required:
     - tenant_id
+    type: object
+  httptransport.ExportAuditResponseBody:
+    properties:
+      content:
+        type: string
+      content_type:
+        type: string
+      filename:
+        type: string
+      record_count:
+        type: integer
     type: object
   httptransport.GetAuditRequest:
     properties:
@@ -133,6 +146,8 @@ definitions:
         type: string
       actor_id:
         type: string
+      actor_type:
+        type: string
       occurred_from:
         type: string
       occurred_to:
@@ -147,7 +162,11 @@ definitions:
         type: string
       resource_type:
         type: string
+      source_service:
+        type: string
       tenant_id:
+        type: string
+      trace_id:
         type: string
     required:
     - tenant_id
@@ -226,7 +245,7 @@ paths:
             - $ref: '#/definitions/httptransport.Response'
             - properties:
                 body:
-                  $ref: '#/definitions/audit.Record'
+                  $ref: '#/definitions/httptransport.AuditRecordResponseBody'
               type: object
       security:
       - Bearer: []
@@ -250,7 +269,12 @@ paths:
         "200":
           description: OK
           schema:
-            $ref: '#/definitions/httptransport.Response'
+            allOf:
+            - $ref: '#/definitions/httptransport.Response'
+            - properties:
+                body:
+                  $ref: '#/definitions/httptransport.ExportAuditResponseBody'
+              type: object
       security:
       - Bearer: []
       summary: Export a bounded audit query as CSV
@@ -273,7 +297,7 @@ paths:
             - $ref: '#/definitions/httptransport.Response'
             - properties:
                 body:
-                  $ref: '#/definitions/audit.Record'
+                  $ref: '#/definitions/httptransport.AuditRecordResponseBody'
               type: object
       security:
       - Bearer: []
@@ -297,7 +321,7 @@ paths:
             - $ref: '#/definitions/httptransport.Response'
             - properties:
                 body:
-                  $ref: '#/definitions/audit.Page'
+                  $ref: '#/definitions/httptransport.AuditPageResponseBody'
               type: object
       security:
       - Bearer: []

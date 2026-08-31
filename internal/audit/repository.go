@@ -56,8 +56,30 @@ func (r *SQLRepository) Get(ctx context.Context, id, tenantID string) (Record, e
 }
 
 func (r *SQLRepository) Query(ctx context.Context, filter Filter) ([]Record, int64, error) {
-	where := ` WHERE tenant_id = ? AND (? = '' OR actor_id = ?) AND (? = '' OR action = ?) AND (? = '' OR resource_type = ?) AND (? = '' OR resource_id = ?) AND (? = '' OR request_id = ?) AND (? = FALSE OR occurred_at >= ?) AND (? = FALSE OR occurred_at <= ?)`
-	args := []any{filter.TenantID, filter.ActorID, filter.ActorID, filter.Action, filter.Action, filter.ResourceType, filter.ResourceType, filter.ResourceID, filter.ResourceID, filter.RequestID, filter.RequestID, !filter.OccurredFrom.IsZero(), filter.OccurredFrom, !filter.OccurredTo.IsZero(), filter.OccurredTo}
+	where := ` WHERE tenant_id = ?` +
+		` AND (? = '' OR actor_id = ?)` +
+		` AND (? = '' OR actor_type = ?)` +
+		` AND (? = '' OR action = ?)` +
+		` AND (? = '' OR resource_type = ?)` +
+		` AND (? = '' OR resource_id = ?)` +
+		` AND (? = '' OR request_id = ?)` +
+		` AND (? = '' OR trace_id = ?)` +
+		` AND (? = '' OR source_service = ?)` +
+		` AND (? = FALSE OR occurred_at >= ?)` +
+		` AND (? = FALSE OR occurred_at <= ?)`
+	args := []any{
+		filter.TenantID,
+		filter.ActorID, filter.ActorID,
+		filter.ActorType, filter.ActorType,
+		filter.Action, filter.Action,
+		filter.ResourceType, filter.ResourceType,
+		filter.ResourceID, filter.ResourceID,
+		filter.RequestID, filter.RequestID,
+		filter.TraceID, filter.TraceID,
+		filter.SourceService, filter.SourceService,
+		!filter.OccurredFrom.IsZero(), filter.OccurredFrom,
+		!filter.OccurredTo.IsZero(), filter.OccurredTo,
+	}
 	var total int64
 	if err := r.db.GetContext(ctx, &total, r.db.Rebind(`SELECT count(*) FROM audit_records`+where), args...); err != nil {
 		return nil, 0, err

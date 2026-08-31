@@ -99,6 +99,36 @@ func TestHTTPAndGRPCEndToEnd(t *testing.T) {
 	if status := postJSON(t, baseURL+"/api/v1/me", "Bearer "+token, "", `{}`); status != http.StatusOK {
 		t.Fatalf("JWT status = %d", status)
 	}
+	createdBody, statusCode := postJSONBody(
+		t,
+		baseURL+"/api/v1/audit/records/create",
+		"Bearer "+token,
+		"audit-create-1",
+		`{"id":"audit-1","tenant_id":"tenant-1","actor_type":"user","action":"invoice.updated","resource_type":"invoice","resource_id":"invoice-1","request_id":"request-1","trace_id":"trace-1","source_service":"billing-service","before_summary":{"status":"draft"},"after_summary":{"status":"published"}}`,
+	)
+	if statusCode != http.StatusOK || !bytes.Contains(createdBody, []byte(`"before_summary":{"status":"draft"}`)) {
+		t.Fatalf("create audit status=%d body=%s", statusCode, createdBody)
+	}
+	queryBody, statusCode := postJSONBody(
+		t,
+		baseURL+"/api/v1/audit/records/query",
+		"Bearer "+token,
+		"",
+		`{"tenant_id":"tenant-1","actor_type":"user","trace_id":"trace-1","source_service":"billing-service","page":1,"page_size":20}`,
+	)
+	if statusCode != http.StatusOK || !bytes.Contains(queryBody, []byte(`"id":"audit-1"`)) {
+		t.Fatalf("query audit status=%d body=%s", statusCode, queryBody)
+	}
+	exportBody, statusCode := postJSONBody(
+		t,
+		baseURL+"/api/v1/audit/records/export",
+		"Bearer "+token,
+		"",
+		`{"tenant_id":"tenant-1","trace_id":"trace-1","source_service":"billing-service","max_records":100}`,
+	)
+	if statusCode != http.StatusOK || auditExportContent(t, exportBody) == "" {
+		t.Fatalf("export audit status=%d body=%s", statusCode, exportBody)
+	}
 
 	connection, err := grpc.NewClient(grpcAddress, grpc.WithTransportCredentials(insecure.NewCredentials()))
 	if err != nil {
@@ -113,6 +143,22 @@ func TestHTTPAndGRPCEndToEnd(t *testing.T) {
 	if _, err := auditv1.NewAuditServiceClient(connection).Query(pskCtx, &auditv1.QueryRequest{}); status.Code(err) == codes.Unauthenticated {
 		t.Fatalf("PSK Query was not authenticated: %v", err)
 	}
+}
+
+func auditExportContent(t *testing.T, data []byte) string {
+	t.Helper()
+	var response struct {
+		Body struct {
+			Content string `json:"content"`
+		} `json:"body"`
+	}
+	if err := json.Unmarshal(data, &response); err != nil {
+		t.Fatal(err)
+	}
+	if !bytes.Contains([]byte(response.Body.Content), []byte("id,tenant_id,actor_id")) {
+		t.Fatalf("invalid audit CSV: %q", response.Body.Content)
+	}
+	return response.Body.Content
 }
 
 func freeAddress(t *testing.T) string {

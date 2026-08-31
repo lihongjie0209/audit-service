@@ -55,7 +55,7 @@ const docTemplate = `{
                                     "type": "object",
                                     "properties": {
                                         "body": {
-                                            "$ref": "#/definitions/audit.Record"
+                                            "$ref": "#/definitions/httptransport.AuditRecordResponseBody"
                                         }
                                     }
                                 }
@@ -97,7 +97,19 @@ const docTemplate = `{
                     "200": {
                         "description": "OK",
                         "schema": {
-                            "$ref": "#/definitions/httptransport.Response"
+                            "allOf": [
+                                {
+                                    "$ref": "#/definitions/httptransport.Response"
+                                },
+                                {
+                                    "type": "object",
+                                    "properties": {
+                                        "body": {
+                                            "$ref": "#/definitions/httptransport.ExportAuditResponseBody"
+                                        }
+                                    }
+                                }
+                            ]
                         }
                     }
                 }
@@ -137,7 +149,7 @@ const docTemplate = `{
                                     "type": "object",
                                     "properties": {
                                         "body": {
-                                            "$ref": "#/definitions/audit.Record"
+                                            "$ref": "#/definitions/httptransport.AuditRecordResponseBody"
                                         }
                                     }
                                 }
@@ -181,7 +193,7 @@ const docTemplate = `{
                                     "type": "object",
                                     "properties": {
                                         "body": {
-                                            "$ref": "#/definitions/audit.Page"
+                                            "$ref": "#/definitions/httptransport.AuditPageResponseBody"
                                         }
                                     }
                                 }
@@ -346,91 +358,6 @@ const docTemplate = `{
         }
     },
     "definitions": {
-        "audit.Page": {
-            "type": "object",
-            "properties": {
-                "page": {
-                    "type": "integer"
-                },
-                "page_size": {
-                    "type": "integer"
-                },
-                "records": {
-                    "type": "array",
-                    "items": {
-                        "$ref": "#/definitions/audit.Record"
-                    }
-                },
-                "total": {
-                    "type": "integer"
-                }
-            }
-        },
-        "audit.Record": {
-            "type": "object",
-            "properties": {
-                "action": {
-                    "type": "string"
-                },
-                "actor_id": {
-                    "type": "string"
-                },
-                "actor_type": {
-                    "type": "string"
-                },
-                "after_summary": {
-                    "type": "array",
-                    "items": {
-                        "type": "integer"
-                    }
-                },
-                "before_summary": {
-                    "type": "array",
-                    "items": {
-                        "type": "integer"
-                    }
-                },
-                "created_at": {
-                    "type": "string"
-                },
-                "created_by": {
-                    "type": "string"
-                },
-                "id": {
-                    "type": "string"
-                },
-                "occurred_at": {
-                    "type": "string"
-                },
-                "request_id": {
-                    "type": "string"
-                },
-                "resource_id": {
-                    "type": "string"
-                },
-                "resource_type": {
-                    "type": "string"
-                },
-                "source_service": {
-                    "type": "string"
-                },
-                "tenant_id": {
-                    "type": "string"
-                },
-                "trace_id": {
-                    "type": "string"
-                },
-                "updated_at": {
-                    "type": "string"
-                },
-                "updated_by": {
-                    "type": "string"
-                },
-                "version": {
-                    "type": "integer"
-                }
-            }
-        },
         "buildinfo.Info": {
             "type": "object",
             "properties": {
@@ -476,6 +403,85 @@ const docTemplate = `{
                 }
             }
         },
+        "httptransport.AuditPageResponseBody": {
+            "type": "object",
+            "properties": {
+                "page": {
+                    "type": "integer"
+                },
+                "page_size": {
+                    "type": "integer"
+                },
+                "records": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/httptransport.AuditRecordResponseBody"
+                    }
+                },
+                "total": {
+                    "type": "integer"
+                }
+            }
+        },
+        "httptransport.AuditRecordResponseBody": {
+            "type": "object",
+            "properties": {
+                "action": {
+                    "type": "string"
+                },
+                "actor_id": {
+                    "type": "string"
+                },
+                "actor_type": {
+                    "type": "string"
+                },
+                "after_summary": {
+                    "type": "object"
+                },
+                "before_summary": {
+                    "type": "object"
+                },
+                "created_at": {
+                    "type": "string"
+                },
+                "created_by": {
+                    "type": "string"
+                },
+                "id": {
+                    "type": "string"
+                },
+                "occurred_at": {
+                    "type": "string"
+                },
+                "request_id": {
+                    "type": "string"
+                },
+                "resource_id": {
+                    "type": "string"
+                },
+                "resource_type": {
+                    "type": "string"
+                },
+                "source_service": {
+                    "type": "string"
+                },
+                "tenant_id": {
+                    "type": "string"
+                },
+                "trace_id": {
+                    "type": "string"
+                },
+                "updated_at": {
+                    "type": "string"
+                },
+                "updated_by": {
+                    "type": "string"
+                },
+                "version": {
+                    "type": "integer"
+                }
+            }
+        },
         "httptransport.ExportAuditRequest": {
             "type": "object",
             "required": [
@@ -486,6 +492,9 @@ const docTemplate = `{
                     "type": "string"
                 },
                 "actor_id": {
+                    "type": "string"
+                },
+                "actor_type": {
                     "type": "string"
                 },
                 "max_records": {
@@ -512,8 +521,31 @@ const docTemplate = `{
                 "resource_type": {
                     "type": "string"
                 },
+                "source_service": {
+                    "type": "string"
+                },
                 "tenant_id": {
                     "type": "string"
+                },
+                "trace_id": {
+                    "type": "string"
+                }
+            }
+        },
+        "httptransport.ExportAuditResponseBody": {
+            "type": "object",
+            "properties": {
+                "content": {
+                    "type": "string"
+                },
+                "content_type": {
+                    "type": "string"
+                },
+                "filename": {
+                    "type": "string"
+                },
+                "record_count": {
+                    "type": "integer"
                 }
             }
         },
@@ -552,6 +584,9 @@ const docTemplate = `{
                 "actor_id": {
                     "type": "string"
                 },
+                "actor_type": {
+                    "type": "string"
+                },
                 "occurred_from": {
                     "type": "string"
                 },
@@ -573,7 +608,13 @@ const docTemplate = `{
                 "resource_type": {
                     "type": "string"
                 },
+                "source_service": {
+                    "type": "string"
+                },
                 "tenant_id": {
+                    "type": "string"
+                },
+                "trace_id": {
                     "type": "string"
                 }
             }

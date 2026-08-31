@@ -24,9 +24,19 @@ type Record struct {
 }
 
 type Filter struct {
-	TenantID, ActorID, Action, ResourceType, ResourceID, RequestID string
-	OccurredFrom, OccurredTo                                       time.Time
-	Page, PageSize                                                 int
+	TenantID      string
+	ActorID       string
+	ActorType     string
+	Action        string
+	ResourceType  string
+	ResourceID    string
+	RequestID     string
+	TraceID       string
+	SourceService string
+	OccurredFrom  time.Time
+	OccurredTo    time.Time
+	Page          int
+	PageSize      int
 }
 
 type Page struct {
