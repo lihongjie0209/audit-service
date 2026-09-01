@@ -20,6 +20,20 @@ func TestConfig_AuthorizationRequiresConfiguredUpstream(t *testing.T) {
 	}
 }
 
+func TestConfig_DatabaseRequiresApplicationUpstream(t *testing.T) {
+	cfg, err := Load("../../config/config.yaml")
+	if err != nil {
+		t.Fatal(err)
+	}
+	cfg.Database.Enabled = true
+	cfg.Database.Type = "postgres"
+	cfg.Database.DSN = "postgres://audit"
+	delete(cfg.Outbound.GRPC, "application")
+	if err := cfg.Validate(); err == nil || !strings.Contains(err.Error(), "outbound.grpc.application") {
+		t.Fatalf("Validate() error = %v", err)
+	}
+}
+
 func TestConfig_ProductionRequiresAuthorization(t *testing.T) {
 	cfg, err := Load("../../config/config.yaml")
 	if err != nil {

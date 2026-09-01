@@ -11,6 +11,7 @@ import (
 	"github.com/jmoiron/sqlx"
 	"github.com/lihongjie0209/audit-service/internal/apperror"
 	"github.com/lihongjie0209/audit-service/internal/database"
+	"github.com/lihongjie0209/microservice-platform-go/appaccess"
 	platformprincipal "github.com/lihongjie0209/microservice-platform-go/principal"
 )
 
@@ -19,6 +20,17 @@ type fakeRepository struct {
 	createErr error
 	getErrs   []error
 	filter    Filter
+}
+
+type applicationVerifierStub struct {
+	tenantID      string
+	applicationID string
+	err           error
+}
+
+func (v *applicationVerifierStub) Verify(_ context.Context, tenantID, applicationID string) error {
+	v.tenantID, v.applicationID = tenantID, applicationID
+	return v.err
 }
 
 func (f *fakeRepository) Create(_ context.Context, _ sqlx.ExtContext, value Record) error {
@@ -116,7 +128,7 @@ func TestExportRequiresActorAndNeutralizesSpreadsheetFormula(t *testing.T) {
 		t.Fatal("Export accepted missing principal")
 	}
 	ctx := platformprincipal.WithContext(t.Context(), platformprincipal.Principal{ID: "auditor-1", Type: platformprincipal.TypeUser, TenantID: "tenant-1"})
-	content, count, err := service.Export(ctx, Filter{TenantID: "tenant-1"}, 100)
+	content, count, err := service.Export(ctx, Filter{TenantID: "tenant-1", ApplicationID: "application-1"}, 100)
 	if err != nil || count != 1 || !bytes.Contains(content, []byte("id,tenant_id,application_id,actor_id")) || !bytes.Contains(content, []byte("application-1")) || !bytes.Contains(content, []byte(`'=HYPERLINK`)) {
 		t.Fatalf("content=%s count=%d err=%v", content, count, err)
 	}
@@ -142,5 +154,66 @@ func TestQueryPreservesApplicationFilter(t *testing.T) {
 	}
 	if repository.filter.ApplicationID != "application-1" {
 		t.Fatalf("application filter = %q", repository.filter.ApplicationID)
+	}
+}
+
+func TestUserAuditReadsRequireGrantedApplication(t *testing.T) {
+	t.Parallel()
+	ctx := platformprincipal.WithContext(t.Context(), platformprincipal.Principal{ID: "auditor-1", Type: platformprincipal.TypeUser, TenantID: "tenant-1"})
+
+	t.Run("application is required", func(t *testing.T) {
+		service, err := NewRuntimeService(&fakeRepository{}, &database.Transactor{}, &applicationVerifierStub{})
+		if err != nil {
+			t.Fatal(err)
+		}
+		_, err = service.Query(ctx, Filter{TenantID: "tenant-1"})
+		var appErr *apperror.Error
+		if !errors.As(err, &appErr) || appErr.Code != apperror.CodeInvalidArgument {
+			t.Fatalf("Query() error = %v, want invalid argument", err)
+		}
+	})
+
+	t.Run("revoked grant is forbidden", func(t *testing.T) {
+		verifier := &applicationVerifierStub{err: appaccess.ErrNotGranted}
+		service, err := NewRuntimeService(&fakeRepository{}, &database.Transactor{}, verifier)
+		if err != nil {
+			t.Fatal(err)
+		}
+		_, err = service.Query(ctx, Filter{TenantID: "tenant-1", ApplicationID: "app-1"})
+		var appErr *apperror.Error
+		if !errors.As(err, &appErr) || appErr.Code != apperror.CodeForbidden {
+			t.Fatalf("Query() error = %v, want forbidden", err)
+		}
+		if verifier.tenantID != "tenant-1" || verifier.applicationID != "app-1" {
+			t.Fatalf("verified scope = %s/%s", verifier.tenantID, verifier.applicationID)
+		}
+	})
+
+	t.Run("decision outage fails closed", func(t *testing.T) {
+		service, err := NewRuntimeService(&fakeRepository{}, &database.Transactor{}, &applicationVerifierStub{err: appaccess.ErrUnavailable})
+		if err != nil {
+			t.Fatal(err)
+		}
+		_, err = service.Query(ctx, Filter{TenantID: "tenant-1", ApplicationID: "app-1"})
+		var appErr *apperror.Error
+		if !errors.As(err, &appErr) || appErr.Code != apperror.CodeDependencyUnavailable {
+			t.Fatalf("Query() error = %v, want unavailable", err)
+		}
+	})
+}
+
+func TestGetAuthorizesPersistedApplication(t *testing.T) {
+	t.Parallel()
+	verifier := &applicationVerifierStub{err: appaccess.ErrNotGranted}
+	repository := &fakeRepository{record: Record{ID: "audit-1", TenantID: "tenant-1", ApplicationID: "persisted-app"}}
+	service, err := NewRuntimeService(repository, &database.Transactor{}, verifier)
+	if err != nil {
+		t.Fatal(err)
+	}
+	ctx := platformprincipal.WithContext(t.Context(), platformprincipal.Principal{ID: "auditor-1", Type: platformprincipal.TypeUser, TenantID: "tenant-1"})
+	_, err = service.Get(ctx, "audit-1", "tenant-1")
+	var appErr *apperror.Error
+	if !errors.As(err, &appErr) || appErr.Code != apperror.CodeForbidden || verifier.applicationID != "persisted-app" {
+		t.Fatalf("Get() error = %v, verified application = %q", err, verifier.applicationID)
 	}
 }

@@ -442,6 +442,11 @@ func (c Config) Validate() error {
 	if c.Database.Enabled && (c.Database.DSN == "" || !isDBType(c.Database.Type)) {
 		return errors.New("enabled database requires dsn and type mysql, postgres, or kingbase")
 	}
+	if c.Database.Enabled {
+		if _, ok := c.Outbound.GRPC["application"]; !ok {
+			return errors.New("enabled database requires outbound.grpc.application")
+		}
+	}
 	if c.Migration.AutoUp && (!c.Database.Enabled || c.Migration.Path == "" || c.Migration.DatabaseURL == "" || !validMigrationTable.MatchString(c.Migration.Table)) {
 		return errors.New("migration.auto_up requires enabled database, path, database_url, and a valid service-specific table")
 	}

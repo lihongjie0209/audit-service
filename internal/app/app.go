@@ -37,6 +37,7 @@ func New(cfg config.Config) *fx.App {
 		CacheModule,
 		AuditEventBusModule,
 		fx.Provide(idempotency.New),
+		fx.Provide(newApplicationVerifier),
 		audit.Module,
 		fx.Provide(observability.NewMetrics),
 		outbound.Module,

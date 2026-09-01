@@ -13,20 +13,33 @@ import (
 	"github.com/jmoiron/sqlx"
 	"github.com/lihongjie0209/audit-service/internal/apperror"
 	"github.com/lihongjie0209/audit-service/internal/database"
+	"github.com/lihongjie0209/microservice-platform-go/appaccess"
 	platformprincipal "github.com/lihongjie0209/microservice-platform-go/principal"
 	"github.com/lihongjie0209/microservice-platform-go/redact"
 	"go.uber.org/fx"
 )
 
 type Service struct {
-	repository Repository
-	transactor *database.Transactor
-	now        func() time.Time
+	repository   Repository
+	transactor   *database.Transactor
+	now          func() time.Time
+	applications appaccess.Verifier
 }
 
 func NewService(repository Repository, transactor *database.Transactor) *Service {
-	return &Service{repository: repository, transactor: transactor, now: time.Now}
+	return &Service{repository: repository, transactor: transactor, now: time.Now, applications: allowAllApplications{}}
 }
+
+func NewRuntimeService(repository Repository, transactor *database.Transactor, applications appaccess.Verifier) (*Service, error) {
+	if applications == nil {
+		return nil, errors.New("application verifier is required")
+	}
+	return &Service{repository: repository, transactor: transactor, now: time.Now, applications: applications}, nil
+}
+
+type allowAllApplications struct{}
+
+func (allowAllApplications) Verify(context.Context, string, string) error { return nil }
 
 func (s *Service) Record(ctx context.Context, value Record) (Record, error) {
 	value.TenantID, value.ApplicationID = strings.TrimSpace(value.TenantID), strings.TrimSpace(value.ApplicationID)
@@ -41,6 +54,11 @@ func (s *Service) Record(ctx context.Context, value Record) (Record, error) {
 	}
 	if err := enforceTenant(caller, value.TenantID); err != nil {
 		return Record{}, err
+	}
+	if caller.Type == platformprincipal.TypeUser {
+		if err := s.verifyApplication(ctx, value.TenantID, value.ApplicationID, false); err != nil {
+			return Record{}, err
+		}
 	}
 	before, err := redact.JSON(value.BeforeSummary)
 	if err != nil {
@@ -99,6 +117,11 @@ func (s *Service) Get(ctx context.Context, id, tenantID string) (Record, error) 
 	if err != nil {
 		return Record{}, apperror.Internal(err)
 	}
+	if caller.Type == platformprincipal.TypeUser {
+		if err := s.verifyApplication(ctx, value.TenantID, value.ApplicationID, false); err != nil {
+			return Record{}, err
+		}
+	}
 	return value, nil
 }
 
@@ -112,6 +135,12 @@ func (s *Service) Query(ctx context.Context, filter Filter) (Page, error) {
 	}
 	if err := enforceTenant(caller, filter.TenantID); err != nil {
 		return Page{}, err
+	}
+	filter.TenantID, filter.ApplicationID = strings.TrimSpace(filter.TenantID), strings.TrimSpace(filter.ApplicationID)
+	if caller.Type == platformprincipal.TypeUser {
+		if err := s.verifyApplication(ctx, filter.TenantID, filter.ApplicationID, true); err != nil {
+			return Page{}, err
+		}
 	}
 	if filter.Page <= 0 {
 		filter.Page = 1
@@ -127,6 +156,26 @@ func (s *Service) Query(ctx context.Context, filter Filter) (Page, error) {
 		return Page{}, apperror.Internal(err)
 	}
 	return Page{Records: values, Total: total, Page: filter.Page, PageSize: filter.PageSize}, nil
+}
+
+func (s *Service) verifyApplication(ctx context.Context, tenantID, applicationID string, required bool) error {
+	tenantID, applicationID = strings.TrimSpace(tenantID), strings.TrimSpace(applicationID)
+	if applicationID == "" {
+		if required {
+			return apperror.Invalid("application_id is required for user audit reads", nil)
+		}
+		return nil
+	}
+	if tenantID == "" {
+		return apperror.Invalid("application_id requires tenant_id", nil)
+	}
+	if err := s.applications.Verify(ctx, tenantID, applicationID); err != nil {
+		if errors.Is(err, appaccess.ErrNotGranted) {
+			return apperror.Forbidden("application access denied")
+		}
+		return apperror.Unavailable("application access verification unavailable", err)
+	}
+	return nil
 }
 
 func enforceTenant(caller platformprincipal.Principal, requestedTenantID string) error {
@@ -183,4 +232,4 @@ func csvSafe(value string) string {
 	return value
 }
 
-var Module = fx.Module("audit", fx.Provide(NewRepository, NewService))
+var Module = fx.Module("audit", fx.Provide(NewRepository, NewRuntimeService))

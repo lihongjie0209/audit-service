@@ -1,6 +1,6 @@
-# Go Web API Template
+# audit-service
 
-Production-oriented starter using Gin, Uber Fx, Viper, slog + lumberjack, sqlx, Redis, NATS JetStream, JWT, robfig/cron, and golang-migrate. Fork it or change the module path before starting a separate project.
+平台不可变审计记录服务。用户查询和导出必须提供 `tenant_id + application_id`，并通过 application-service 的租户应用授权校验；按 ID 读取使用记录中持久化的应用归属再次校验。PSK/服务账号写入与合规作业仍由统一服务授权控制，不依赖用户应用选择。
 
 
 ## Quick start
