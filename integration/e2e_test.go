@@ -155,7 +155,7 @@ func auditExportContent(t *testing.T, data []byte) string {
 	if err := json.Unmarshal(data, &response); err != nil {
 		t.Fatal(err)
 	}
-	if !bytes.Contains([]byte(response.Body.Content), []byte("id,tenant_id,actor_id")) {
+	if !bytes.Contains([]byte(response.Body.Content), []byte("id,tenant_id,application_id,actor_id")) {
 		t.Fatalf("invalid audit CSV: %q", response.Body.Content)
 	}
 	return response.Body.Content

@@ -110,14 +110,14 @@ func TestServiceRecordTreatsConcurrentDuplicateEventAsSuccess(t *testing.T) {
 }
 
 func TestExportRequiresActorAndNeutralizesSpreadsheetFormula(t *testing.T) {
-	repository := &fakeRepository{record: Record{ID: "audit-1", TenantID: "tenant-1", ActorID: "user-1", Action: "=HYPERLINK(\"bad\")", ResourceType: "user", ResourceID: "user-1", SourceService: "identity-service", OccurredAt: time.Now(), CreatedAt: time.Now(), Version: 1}}
+	repository := &fakeRepository{record: Record{ID: "audit-1", TenantID: "tenant-1", ApplicationID: "application-1", ActorID: "user-1", Action: "=HYPERLINK(\"bad\")", ResourceType: "user", ResourceID: "user-1", SourceService: "identity-service", OccurredAt: time.Now(), CreatedAt: time.Now(), Version: 1}}
 	service := NewService(repository, &database.Transactor{})
 	if _, _, err := service.Export(t.Context(), Filter{TenantID: "tenant-1"}, 100); err == nil {
 		t.Fatal("Export accepted missing principal")
 	}
 	ctx := platformprincipal.WithContext(t.Context(), platformprincipal.Principal{ID: "auditor-1", Type: platformprincipal.TypeUser, TenantID: "tenant-1"})
 	content, count, err := service.Export(ctx, Filter{TenantID: "tenant-1"}, 100)
-	if err != nil || count != 1 || !bytes.Contains(content, []byte(`'=HYPERLINK`)) {
+	if err != nil || count != 1 || !bytes.Contains(content, []byte("id,tenant_id,application_id,actor_id")) || !bytes.Contains(content, []byte("application-1")) || !bytes.Contains(content, []byte(`'=HYPERLINK`)) {
 		t.Fatalf("content=%s count=%d err=%v", content, count, err)
 	}
 }
