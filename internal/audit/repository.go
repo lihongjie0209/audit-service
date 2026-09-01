@@ -23,7 +23,7 @@ type SQLRepository struct{ db *sqlx.DB }
 
 func NewRepository(db *sqlx.DB) Repository { return &SQLRepository{db: db} }
 
-const recordColumns = `id, tenant_id, actor_id, actor_type, action, resource_type, resource_id, request_id, trace_id, source_service, before_summary, after_summary, occurred_at, version, created_at, updated_at, created_by, updated_by`
+const recordColumns = `id, tenant_id, application_id, actor_id, actor_type, action, resource_type, resource_id, request_id, trace_id, source_service, before_summary, after_summary, occurred_at, version, created_at, updated_at, created_by, updated_by`
 
 func (r *SQLRepository) Create(ctx context.Context, executor sqlx.ExtContext, value Record) error {
 	if _, err := executor.ExecContext(ctx, r.db.Rebind(`INSERT INTO audit_record_keys (id,occurred_at,version,created_at,updated_at,created_by,updated_by) VALUES (?,?,?,?,?,?,?)`), value.ID, value.OccurredAt, 1, value.CreatedAt, value.UpdatedAt, value.CreatedBy, value.UpdatedBy); err != nil {
@@ -32,8 +32,8 @@ func (r *SQLRepository) Create(ctx context.Context, executor sqlx.ExtContext, va
 		}
 		return err
 	}
-	query := r.db.Rebind(`INSERT INTO audit_records (` + recordColumns + `) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`)
-	_, err := executor.ExecContext(ctx, query, value.ID, value.TenantID, value.ActorID, value.ActorType, value.Action, value.ResourceType, value.ResourceID, value.RequestID, value.TraceID, value.SourceService, value.BeforeSummary, value.AfterSummary, value.OccurredAt, value.Version, value.CreatedAt, value.UpdatedAt, value.CreatedBy, value.UpdatedBy)
+	query := r.db.Rebind(`INSERT INTO audit_records (` + recordColumns + `) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`)
+	_, err := executor.ExecContext(ctx, query, value.ID, value.TenantID, value.ApplicationID, value.ActorID, value.ActorType, value.Action, value.ResourceType, value.ResourceID, value.RequestID, value.TraceID, value.SourceService, value.BeforeSummary, value.AfterSummary, value.OccurredAt, value.Version, value.CreatedAt, value.UpdatedAt, value.CreatedBy, value.UpdatedBy)
 	return err
 }
 
@@ -57,6 +57,7 @@ func (r *SQLRepository) Get(ctx context.Context, id, tenantID string) (Record, e
 
 func (r *SQLRepository) Query(ctx context.Context, filter Filter) ([]Record, int64, error) {
 	where := ` WHERE tenant_id = ?` +
+		` AND (? = '' OR application_id = ?)` +
 		` AND (? = '' OR actor_id = ?)` +
 		` AND (? = '' OR actor_type = ?)` +
 		` AND (? = '' OR action = ?)` +
@@ -69,6 +70,7 @@ func (r *SQLRepository) Query(ctx context.Context, filter Filter) ([]Record, int
 		` AND (? = FALSE OR occurred_at <= ?)`
 	args := []any{
 		filter.TenantID,
+		filter.ApplicationID, filter.ApplicationID,
 		filter.ActorID, filter.ActorID,
 		filter.ActorType, filter.ActorType,
 		filter.Action, filter.Action,

@@ -60,7 +60,7 @@ func TestRepositoryAndMigrations(t *testing.T) {
 			t.Cleanup(func() { _ = db.Close() })
 			repository := auditdomain.NewRepository(db)
 			now := time.Now().Truncate(time.Microsecond)
-			record := auditdomain.Record{ID: uuid.NewString(), TenantID: "tenant-1", ActorID: "user-1", ActorType: "user", Action: "created", ResourceType: "invoice", ResourceID: "invoice-1", RequestID: "request-1", TraceID: "trace-1", SourceService: "billing-service", BeforeSummary: []byte(`{}`), AfterSummary: []byte(`{"status":"draft"}`), OccurredAt: now, Version: 1, CreatedAt: now, UpdatedAt: now, CreatedBy: "user-1", UpdatedBy: "user-1"}
+			record := auditdomain.Record{ID: uuid.NewString(), TenantID: "tenant-1", ApplicationID: "application-1", ActorID: "user-1", ActorType: "user", Action: "created", ResourceType: "invoice", ResourceID: "invoice-1", RequestID: "request-1", TraceID: "trace-1", SourceService: "billing-service", BeforeSummary: []byte(`{}`), AfterSummary: []byte(`{"status":"draft"}`), OccurredAt: now, Version: 1, CreatedAt: now, UpdatedAt: now, CreatedBy: "user-1", UpdatedBy: "user-1"}
 			if err := appdb.NewTransactor(db).Within(ctx, nil, func(tx *sqlx.Tx) error { return repository.Create(ctx, tx, record) }); err != nil {
 				t.Fatalf("create audit record: %v", err)
 			}
@@ -68,7 +68,7 @@ func TestRepositoryAndMigrations(t *testing.T) {
 			if err != nil || found.ResourceID != record.ResourceID {
 				t.Fatalf("get audit record=%+v err=%v", found, err)
 			}
-			items, total, err := repository.Query(ctx, auditdomain.Filter{TenantID: record.TenantID, ActorType: "user", ResourceType: "invoice", TraceID: "trace-1", SourceService: "billing-service", Page: 1, PageSize: 20})
+			items, total, err := repository.Query(ctx, auditdomain.Filter{TenantID: record.TenantID, ApplicationID: record.ApplicationID, ActorType: "user", ResourceType: "invoice", TraceID: "trace-1", SourceService: "billing-service", Page: 1, PageSize: 20})
 			if err != nil || total != 1 || len(items) != 1 {
 				t.Fatalf("query total=%d len=%d err=%v", total, len(items), err)
 			}

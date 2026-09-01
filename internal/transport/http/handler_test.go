@@ -34,6 +34,7 @@ func TestAuditFilterMapsCorrelationAndSourceFields(t *testing.T) {
 	to := from.Add(time.Hour)
 	filter := auditFilter(QueryAuditRequest{
 		TenantID:      "tenant-1",
+		ApplicationID: "application-1",
 		ActorID:       "user-1",
 		ActorType:     "user",
 		Action:        "invoice.finalized",
@@ -47,7 +48,7 @@ func TestAuditFilterMapsCorrelationAndSourceFields(t *testing.T) {
 		Page:          2,
 		PageSize:      50,
 	})
-	if filter.ActorType != "user" || filter.TraceID != "trace-1" || filter.SourceService != "billing-service" {
+	if filter.ApplicationID != "application-1" || filter.ActorType != "user" || filter.TraceID != "trace-1" || filter.SourceService != "billing-service" {
 		t.Fatalf("auditFilter() = %#v", filter)
 	}
 	if filter.OccurredFrom != from || filter.OccurredTo != to || filter.Page != 2 || filter.PageSize != 50 {

@@ -114,7 +114,7 @@ func (s *auditServer) Query(ctx context.Context, request *auditv1.QueryRequest) 
 	if request.GetPage() != nil {
 		page, pageSize = int(request.GetPage().GetPage()), int(request.GetPage().GetPageSize())
 	}
-	filter := auditdomain.Filter{TenantID: request.GetTenantId(), ActorID: request.GetActorId(), Action: request.GetAction(), ResourceType: request.GetResourceType(), ResourceID: request.GetResourceId(), RequestID: request.GetRequestId(), Page: page, PageSize: pageSize}
+	filter := auditdomain.Filter{TenantID: request.GetTenantId(), ApplicationID: request.GetApplicationId(), ActorID: request.GetActorId(), Action: request.GetAction(), ResourceType: request.GetResourceType(), ResourceID: request.GetResourceId(), RequestID: request.GetRequestId(), Page: page, PageSize: pageSize}
 	if request.GetOccurredFrom() != nil {
 		filter.OccurredFrom = request.GetOccurredFrom().AsTime()
 	}
@@ -149,7 +149,7 @@ func filterFromProto(request *auditv1.QueryRequest) auditdomain.Filter {
 	if request.GetPage() != nil {
 		page, pageSize = int(request.GetPage().GetPage()), int(request.GetPage().GetPageSize())
 	}
-	filter := auditdomain.Filter{TenantID: request.GetTenantId(), ActorID: request.GetActorId(), Action: request.GetAction(), ResourceType: request.GetResourceType(), ResourceID: request.GetResourceId(), RequestID: request.GetRequestId(), Page: page, PageSize: pageSize}
+	filter := auditdomain.Filter{TenantID: request.GetTenantId(), ApplicationID: request.GetApplicationId(), ActorID: request.GetActorId(), Action: request.GetAction(), ResourceType: request.GetResourceType(), ResourceID: request.GetResourceId(), RequestID: request.GetRequestId(), Page: page, PageSize: pageSize}
 	if request.GetOccurredFrom() != nil {
 		filter.OccurredFrom = request.GetOccurredFrom().AsTime()
 	}
@@ -160,14 +160,14 @@ func filterFromProto(request *auditv1.QueryRequest) auditdomain.Filter {
 }
 
 func fromProtoAudit(value *auditv1.AuditRecord) auditdomain.Record {
-	result := auditdomain.Record{ID: value.GetId(), TenantID: value.GetTenantId(), ActorID: value.GetActorId(), ActorType: value.GetActorType(), Action: value.GetAction(), ResourceType: value.GetResourceType(), ResourceID: value.GetResourceId(), RequestID: value.GetRequestId(), TraceID: value.GetTraceId(), SourceService: value.GetSourceService(), BeforeSummary: value.GetBeforeSummary(), AfterSummary: value.GetAfterSummary()}
+	result := auditdomain.Record{ID: value.GetId(), TenantID: value.GetTenantId(), ApplicationID: value.GetApplicationId(), ActorID: value.GetActorId(), ActorType: value.GetActorType(), Action: value.GetAction(), ResourceType: value.GetResourceType(), ResourceID: value.GetResourceId(), RequestID: value.GetRequestId(), TraceID: value.GetTraceId(), SourceService: value.GetSourceService(), BeforeSummary: value.GetBeforeSummary(), AfterSummary: value.GetAfterSummary()}
 	if value.GetOccurredAt() != nil {
 		result.OccurredAt = value.GetOccurredAt().AsTime()
 	}
 	return result
 }
 func toProtoAudit(value auditdomain.Record) *auditv1.AuditRecord {
-	return &auditv1.AuditRecord{Id: value.ID, TenantId: value.TenantID, ActorId: value.ActorID, ActorType: value.ActorType, Action: value.Action, ResourceType: value.ResourceType, ResourceId: value.ResourceID, RequestId: value.RequestID, TraceId: value.TraceID, SourceService: value.SourceService, BeforeSummary: value.BeforeSummary, AfterSummary: value.AfterSummary, OccurredAt: timestamppb.New(value.OccurredAt), Version: value.Version, CreatedAt: timestamppb.New(value.CreatedAt), UpdatedAt: timestamppb.New(value.UpdatedAt), CreatedBy: value.CreatedBy, UpdatedBy: value.UpdatedBy}
+	return &auditv1.AuditRecord{Id: value.ID, TenantId: value.TenantID, ApplicationId: value.ApplicationID, ActorId: value.ActorID, ActorType: value.ActorType, Action: value.Action, ResourceType: value.ResourceType, ResourceId: value.ResourceID, RequestId: value.RequestID, TraceId: value.TraceID, SourceService: value.SourceService, BeforeSummary: value.BeforeSummary, AfterSummary: value.AfterSummary, OccurredAt: timestamppb.New(value.OccurredAt), Version: value.Version, CreatedAt: timestamppb.New(value.CreatedAt), UpdatedAt: timestamppb.New(value.UpdatedAt), CreatedBy: value.CreatedBy, UpdatedBy: value.UpdatedBy}
 }
 
 func (s *Server) start(enabled bool) func(context.Context) error {

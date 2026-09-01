@@ -26,6 +26,7 @@ func NewHandler(healthService *health.Service, auditService *auditdomain.Service
 type RecordAuditRequest struct {
 	ID            string          `json:"id"`
 	TenantID      string          `json:"tenant_id" binding:"required"`
+	ApplicationID string          `json:"application_id"`
 	ActorID       string          `json:"actor_id"`
 	ActorType     string          `json:"actor_type"`
 	Action        string          `json:"action" binding:"required"`
@@ -44,6 +45,7 @@ type GetAuditRequest struct {
 }
 type QueryAuditRequest struct {
 	TenantID      string    `json:"tenant_id" binding:"required"`
+	ApplicationID string    `json:"application_id"`
 	ActorID       string    `json:"actor_id"`
 	ActorType     string    `json:"actor_type"`
 	Action        string    `json:"action"`
@@ -64,6 +66,7 @@ type ExportAuditRequest struct {
 type AuditRecordResponseBody struct {
 	ID            string          `json:"id"`
 	TenantID      string          `json:"tenant_id"`
+	ApplicationID string          `json:"application_id"`
 	ActorID       string          `json:"actor_id"`
 	ActorType     string          `json:"actor_type"`
 	Action        string          `json:"action"`
@@ -169,7 +172,7 @@ func (h *Handler) RecordAudit(c *gin.Context) {
 		Fail(c, h.logger, apperror.Invalid("invalid json request", err))
 		return
 	}
-	created, err := h.audits.Record(c.Request.Context(), auditdomain.Record{ID: request.ID, TenantID: request.TenantID, ActorID: request.ActorID, ActorType: request.ActorType, Action: request.Action, ResourceType: request.ResourceType, ResourceID: request.ResourceID, RequestID: request.RequestID, TraceID: request.TraceID, SourceService: request.SourceService, BeforeSummary: request.BeforeSummary, AfterSummary: request.AfterSummary, OccurredAt: request.OccurredAt})
+	created, err := h.audits.Record(c.Request.Context(), auditdomain.Record{ID: request.ID, TenantID: request.TenantID, ApplicationID: request.ApplicationID, ActorID: request.ActorID, ActorType: request.ActorType, Action: request.Action, ResourceType: request.ResourceType, ResourceID: request.ResourceID, RequestID: request.RequestID, TraceID: request.TraceID, SourceService: request.SourceService, BeforeSummary: request.BeforeSummary, AfterSummary: request.AfterSummary, OccurredAt: request.OccurredAt})
 	if err != nil {
 		Fail(c, h.logger, err)
 		return
@@ -260,6 +263,7 @@ func (h *Handler) ExportAudits(c *gin.Context) {
 func auditFilter(request QueryAuditRequest) auditdomain.Filter {
 	return auditdomain.Filter{
 		TenantID:      request.TenantID,
+		ApplicationID: request.ApplicationID,
 		ActorID:       request.ActorID,
 		ActorType:     request.ActorType,
 		Action:        request.Action,
@@ -279,6 +283,7 @@ func auditRecordResponse(record auditdomain.Record) AuditRecordResponseBody {
 	return AuditRecordResponseBody{
 		ID:            record.ID,
 		TenantID:      record.TenantID,
+		ApplicationID: record.ApplicationID,
 		ActorID:       record.ActorID,
 		ActorType:     record.ActorType,
 		Action:        record.Action,

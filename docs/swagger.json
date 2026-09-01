@@ -435,6 +435,9 @@
                 "after_summary": {
                     "type": "object"
                 },
+                "application_id": {
+                    "type": "string"
+                },
                 "before_summary": {
                     "type": "object"
                 },
@@ -492,6 +495,9 @@
                     "type": "string"
                 },
                 "actor_type": {
+                    "type": "string"
+                },
+                "application_id": {
                     "type": "string"
                 },
                 "max_records": {
@@ -584,6 +590,9 @@
                 "actor_type": {
                     "type": "string"
                 },
+                "application_id": {
+                    "type": "string"
+                },
                 "occurred_from": {
                     "type": "string"
                 },
@@ -637,6 +646,9 @@
                 },
                 "after_summary": {
                     "type": "object"
+                },
+                "application_id": {
+                    "type": "string"
                 },
                 "before_summary": {
                     "type": "object"

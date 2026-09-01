@@ -61,7 +61,7 @@ func (r *auditEventRuntime) consume(ctx context.Context, envelope *commonv1.Even
 		return err
 	}
 	requestContext := envelope.GetContext()
-	record := auditdomain.Record{ID: envelope.GetEventId(), TenantID: envelope.GetTenantId(), Action: envelope.GetEventType(), ResourceType: envelope.GetAggregateType(), ResourceID: envelope.GetAggregateId(), SourceService: sourceService(envelope.GetEventType()), AfterSummary: summary}
+	record := auditdomain.Record{ID: envelope.GetEventId(), TenantID: envelope.GetTenantId(), ApplicationID: envelope.GetApplicationId(), Action: envelope.GetEventType(), ResourceType: envelope.GetAggregateType(), ResourceID: envelope.GetAggregateId(), SourceService: sourceService(envelope.GetEventType()), AfterSummary: summary}
 	if envelope.GetOccurredAt() != nil {
 		record.OccurredAt = envelope.GetOccurredAt().AsTime()
 	}

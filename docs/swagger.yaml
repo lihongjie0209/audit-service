@@ -52,6 +52,8 @@ definitions:
         type: string
       after_summary:
         type: object
+      application_id:
+        type: string
       before_summary:
         type: object
       created_at:
@@ -88,6 +90,8 @@ definitions:
       actor_id:
         type: string
       actor_type:
+        type: string
+      application_id:
         type: string
       max_records:
         type: integer
@@ -148,6 +152,8 @@ definitions:
         type: string
       actor_type:
         type: string
+      application_id:
+        type: string
       occurred_from:
         type: string
       occurred_to:
@@ -181,6 +187,8 @@ definitions:
         type: string
       after_summary:
         type: object
+      application_id:
+        type: string
       before_summary:
         type: object
       id:

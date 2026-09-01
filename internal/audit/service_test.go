@@ -18,6 +18,7 @@ type fakeRepository struct {
 	record    Record
 	createErr error
 	getErrs   []error
+	filter    Filter
 }
 
 func (f *fakeRepository) Create(_ context.Context, _ sqlx.ExtContext, value Record) error {
@@ -35,7 +36,8 @@ func (f *fakeRepository) Get(_ context.Context, _, _ string) (Record, error) {
 	}
 	return f.record, nil
 }
-func (f *fakeRepository) Query(_ context.Context, _ Filter) ([]Record, int64, error) {
+func (f *fakeRepository) Query(_ context.Context, filter Filter) ([]Record, int64, error) {
+	f.filter = filter
 	return []Record{f.record}, 1, nil
 }
 
@@ -127,5 +129,18 @@ func TestQueryRejectsTenantOutsideJWTContext(t *testing.T) {
 	var appErr *apperror.Error
 	if !errors.As(err, &appErr) || appErr.Code != apperror.CodeForbidden {
 		t.Fatalf("Query() error = %v, want forbidden", err)
+	}
+}
+
+func TestQueryPreservesApplicationFilter(t *testing.T) {
+	repository := &fakeRepository{}
+	service := NewService(repository, &database.Transactor{})
+	ctx := platformprincipal.WithContext(t.Context(), platformprincipal.Principal{ID: "auditor-1", Type: platformprincipal.TypeUser, TenantID: "tenant-1"})
+	_, err := service.Query(ctx, Filter{TenantID: "tenant-1", ApplicationID: "application-1"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if repository.filter.ApplicationID != "application-1" {
+		t.Fatalf("application filter = %q", repository.filter.ApplicationID)
 	}
 }

@@ -5,6 +5,7 @@ import "time"
 type Record struct {
 	ID            string    `db:"id" json:"id"`
 	TenantID      string    `db:"tenant_id" json:"tenant_id"`
+	ApplicationID string    `db:"application_id" json:"application_id"`
 	ActorID       string    `db:"actor_id" json:"actor_id"`
 	ActorType     string    `db:"actor_type" json:"actor_type"`
 	Action        string    `db:"action" json:"action"`
@@ -25,6 +26,7 @@ type Record struct {
 
 type Filter struct {
 	TenantID      string
+	ApplicationID string
 	ActorID       string
 	ActorType     string
 	Action        string

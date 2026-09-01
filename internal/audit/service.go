@@ -29,7 +29,8 @@ func NewService(repository Repository, transactor *database.Transactor) *Service
 }
 
 func (s *Service) Record(ctx context.Context, value Record) (Record, error) {
-	value.TenantID, value.Action, value.ResourceType, value.ResourceID = strings.TrimSpace(value.TenantID), strings.TrimSpace(value.Action), strings.TrimSpace(value.ResourceType), strings.TrimSpace(value.ResourceID)
+	value.TenantID, value.ApplicationID = strings.TrimSpace(value.TenantID), strings.TrimSpace(value.ApplicationID)
+	value.Action, value.ResourceType, value.ResourceID = strings.TrimSpace(value.Action), strings.TrimSpace(value.ResourceType), strings.TrimSpace(value.ResourceID)
 	value.SourceService = strings.TrimSpace(value.SourceService)
 	if value.Action == "" || value.ResourceType == "" || value.ResourceID == "" || value.SourceService == "" {
 		return Record{}, apperror.Invalid("action, resource_type, resource_id and source_service are required", nil)
@@ -144,7 +145,7 @@ func (s *Service) Export(ctx context.Context, filter Filter, maxRecords int) ([]
 	}
 	var output bytes.Buffer
 	writer := csv.NewWriter(&output)
-	if err := writer.Write([]string{"id", "tenant_id", "actor_id", "actor_type", "action", "resource_type", "resource_id", "request_id", "trace_id", "source_service", "before_summary", "after_summary", "occurred_at", "version", "created_at", "created_by"}); err != nil {
+	if err := writer.Write([]string{"id", "tenant_id", "application_id", "actor_id", "actor_type", "action", "resource_type", "resource_id", "request_id", "trace_id", "source_service", "before_summary", "after_summary", "occurred_at", "version", "created_at", "created_by"}); err != nil {
 		return nil, 0, apperror.Internal(err)
 	}
 	var exported int64
@@ -155,7 +156,7 @@ func (s *Service) Export(ctx context.Context, filter Filter, maxRecords int) ([]
 			return nil, 0, err
 		}
 		for _, value := range result.Records {
-			record := []string{value.ID, value.TenantID, value.ActorID, value.ActorType, value.Action, value.ResourceType, value.ResourceID, value.RequestID, value.TraceID, value.SourceService, string(value.BeforeSummary), string(value.AfterSummary), value.OccurredAt.Format(time.RFC3339Nano), strconv.FormatInt(value.Version, 10), value.CreatedAt.Format(time.RFC3339Nano), value.CreatedBy}
+			record := []string{value.ID, value.TenantID, value.ApplicationID, value.ActorID, value.ActorType, value.Action, value.ResourceType, value.ResourceID, value.RequestID, value.TraceID, value.SourceService, string(value.BeforeSummary), string(value.AfterSummary), value.OccurredAt.Format(time.RFC3339Nano), strconv.FormatInt(value.Version, 10), value.CreatedAt.Format(time.RFC3339Nano), value.CreatedBy}
 			for index := range record {
 				record[index] = csvSafe(record[index])
 			}

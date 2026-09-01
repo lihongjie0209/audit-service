@@ -438,6 +438,9 @@ const docTemplate = `{
                 "after_summary": {
                     "type": "object"
                 },
+                "application_id": {
+                    "type": "string"
+                },
                 "before_summary": {
                     "type": "object"
                 },
@@ -495,6 +498,9 @@ const docTemplate = `{
                     "type": "string"
                 },
                 "actor_type": {
+                    "type": "string"
+                },
+                "application_id": {
                     "type": "string"
                 },
                 "max_records": {
@@ -587,6 +593,9 @@ const docTemplate = `{
                 "actor_type": {
                     "type": "string"
                 },
+                "application_id": {
+                    "type": "string"
+                },
                 "occurred_from": {
                     "type": "string"
                 },
@@ -640,6 +649,9 @@ const docTemplate = `{
                 },
                 "after_summary": {
                     "type": "object"
+                },
+                "application_id": {
+                    "type": "string"
                 },
                 "before_summary": {
                     "type": "object"
