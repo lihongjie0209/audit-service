@@ -76,10 +76,10 @@ func auditGRPCRequirement(enabled bool) platformauthz.GRPCResolver {
 			return platformauthz.Requirement{}, false
 		}
 		requirements := map[string]platformauthz.Requirement{
-			auditv1.AuditService_Record_FullMethodName: {Resource: "audit.record", Action: "create"},
-			auditv1.AuditService_Get_FullMethodName:    {Resource: "audit.record", Action: "read"},
-			auditv1.AuditService_Query_FullMethodName:  {Resource: "audit.record", Action: "query"},
-			auditv1.AuditService_Export_FullMethodName: {Resource: "audit.record", Action: "export"},
+			auditv1.AuditService_Record_FullMethodName: {Resource: "audit.record", Action: "create", Scope: platformauthz.ScopePrincipal},
+			auditv1.AuditService_Get_FullMethodName:    {Resource: "audit.record", Action: "read", Scope: platformauthz.ScopePrincipal},
+			auditv1.AuditService_Query_FullMethodName:  {Resource: "audit.record", Action: "query", Scope: platformauthz.ScopePrincipal},
+			auditv1.AuditService_Export_FullMethodName: {Resource: "audit.record", Action: "export", Scope: platformauthz.ScopePrincipal},
 		}
 		requirement, ok := requirements[method]
 		return requirement, ok

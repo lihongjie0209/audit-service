@@ -248,10 +248,10 @@ func Authorization(enabled bool, authorizer platformauthz.Authorizer, logger *sl
 
 func auditHTTPRequirement(route string) (platformauthz.Requirement, bool) {
 	requirements := map[string]platformauthz.Requirement{
-		"/api/v1/audit/records/create": {Resource: "audit.record", Action: "create"},
-		"/api/v1/audit/records/get":    {Resource: "audit.record", Action: "read"},
-		"/api/v1/audit/records/query":  {Resource: "audit.record", Action: "query"},
-		"/api/v1/audit/records/export": {Resource: "audit.record", Action: "export"},
+		"/api/v1/audit/records/create": {Resource: "audit.record", Action: "create", Scope: platformauthz.ScopePrincipal},
+		"/api/v1/audit/records/get":    {Resource: "audit.record", Action: "read", Scope: platformauthz.ScopePrincipal},
+		"/api/v1/audit/records/query":  {Resource: "audit.record", Action: "query", Scope: platformauthz.ScopePrincipal},
+		"/api/v1/audit/records/export": {Resource: "audit.record", Action: "export", Scope: platformauthz.ScopePrincipal},
 	}
 	requirement, ok := requirements[route]
 	return requirement, ok
