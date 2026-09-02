@@ -238,11 +238,12 @@ type Breaker struct {
 	OpenTimeout      time.Duration `mapstructure:"open_timeout"`
 }
 type ClientTLS struct {
-	Enabled    bool   `mapstructure:"enabled"`
-	ServerName string `mapstructure:"server_name"`
-	CAFile     string `mapstructure:"ca_file"`
-	CertFile   string `mapstructure:"cert_file"`
-	KeyFile    string `mapstructure:"key_file"`
+	Enabled       bool   `mapstructure:"enabled"`
+	AllowInsecure bool   `mapstructure:"allow_insecure"`
+	ServerName    string `mapstructure:"server_name"`
+	CAFile        string `mapstructure:"ca_file"`
+	CertFile      string `mapstructure:"cert_file"`
+	KeyFile       string `mapstructure:"key_file"`
 }
 
 func Load(path string) (Config, error) { return LoadWithProfile(path, "") }
@@ -543,7 +544,7 @@ func (c Config) Validate() error {
 		if upstream.BaseURL == "" || upstream.Timeout <= 0 {
 			return fmt.Errorf("outbound.http.%s requires base_url and positive timeout", name)
 		}
-		if err := validateClientPolicy(name, upstream.Auth, upstream.Retry, upstream.Breaker, upstream.TLS); err != nil {
+		if err := validateClientPolicy(name, upstream.Auth, upstream.Retry, upstream.Breaker, upstream.TLS, c.App.Env == "production"); err != nil {
 			return err
 		}
 	}
@@ -551,22 +552,28 @@ func (c Config) Validate() error {
 		if upstream.Target == "" || upstream.Timeout <= 0 {
 			return fmt.Errorf("outbound.grpc.%s requires target and positive timeout", name)
 		}
-		if err := validateClientPolicy(name, upstream.Auth, upstream.Retry, upstream.Breaker, upstream.TLS); err != nil {
+		if err := validateClientPolicy(name, upstream.Auth, upstream.Retry, upstream.Breaker, upstream.TLS, c.App.Env == "production"); err != nil {
 			return err
 		}
 	}
 	return nil
 }
 
-func validateClientPolicy(name string, auth ClientAuth, retry Retry, breaker Breaker, tls ClientTLS) error {
+func validateClientPolicy(name string, auth ClientAuth, retry Retry, breaker Breaker, tls ClientTLS, production bool) error {
 	if auth.Type != "" && auth.Type != "bearer" && auth.Type != "psk" {
 		return fmt.Errorf("outbound %s auth.type must be bearer or psk", name)
 	}
 	if auth.Type != "" && auth.Token == "" {
 		return fmt.Errorf("outbound %s auth.token is required", name)
 	}
-	if auth.Type != "" && !tls.Enabled {
-		return fmt.Errorf("outbound %s credentials require TLS", name)
+	if auth.Type != "" && !tls.Enabled && !tls.AllowInsecure {
+		return fmt.Errorf("outbound %s credentials require TLS or explicit allow_insecure", name)
+	}
+	if tls.Enabled && tls.AllowInsecure {
+		return fmt.Errorf("outbound %s TLS and allow_insecure are mutually exclusive", name)
+	}
+	if production && auth.Type != "" && tls.AllowInsecure {
+		return fmt.Errorf("production outbound %s credentials require TLS", name)
 	}
 	if retry.MaxAttempts < 1 || retry.MaxAttempts > 5 || retry.InitialBackoff <= 0 || retry.MaxBackoff < retry.InitialBackoff {
 		return fmt.Errorf("outbound %s retry policy is invalid", name)

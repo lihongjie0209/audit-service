@@ -29,7 +29,7 @@ func NewRegistry(lc fx.Lifecycle, cfg config.Config, metrics *observability.Metr
 		registry.http[name] = client
 	}
 	for name, upstream := range cfg.Outbound.GRPC {
-		clientCfg := grpcclient.Config{Name: name, Target: upstream.Target, Timeout: upstream.Timeout, Retry: upstream.Retry, Breaker: upstream.Breaker, Metrics: metrics, TLS: grpcclient.TLSConfig{Enabled: upstream.TLS.Enabled, ServerName: upstream.TLS.ServerName, CAFile: upstream.TLS.CAFile, CertFile: upstream.TLS.CertFile, KeyFile: upstream.TLS.KeyFile}}
+		clientCfg := grpcclient.Config{Name: name, Target: upstream.Target, Timeout: upstream.Timeout, Retry: upstream.Retry, Breaker: upstream.Breaker, Metrics: metrics, TLS: grpcclient.TLSConfig{Enabled: upstream.TLS.Enabled, AllowInsecureToken: upstream.TLS.AllowInsecure, ServerName: upstream.TLS.ServerName, CAFile: upstream.TLS.CAFile, CertFile: upstream.TLS.CertFile, KeyFile: upstream.TLS.KeyFile}}
 		switch upstream.Auth.Type {
 		case "bearer":
 			clientCfg.Token = upstream.Auth.Token

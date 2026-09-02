@@ -34,6 +34,27 @@ func TestConfig_DatabaseRequiresApplicationUpstream(t *testing.T) {
 	}
 }
 
+func TestConfig_OutboundPSKRequiresTLSOrExplicitDevelopmentOptIn(t *testing.T) {
+	cfg, err := Load("../../config/config.yaml")
+	if err != nil {
+		t.Fatal(err)
+	}
+	application := cfg.Outbound.GRPC["application"]
+	application.Auth = ClientAuth{Type: "psk", Token: strings.Repeat("p", 32)}
+	cfg.Outbound.GRPC["application"] = application
+	if err := cfg.Validate(); err == nil || !strings.Contains(err.Error(), "TLS or explicit allow_insecure") {
+		t.Fatalf("Validate() error = %v", err)
+	}
+	application.TLS.AllowInsecure = true
+	cfg.Outbound.GRPC["application"] = application
+	if err := cfg.Validate(); err != nil {
+		t.Fatalf("Validate() with development opt-in error = %v", err)
+	}
+	if err := validateClientPolicy("application", application.Auth, application.Retry, application.Breaker, application.TLS, true); err == nil || !strings.Contains(err.Error(), "production") {
+		t.Fatalf("production validateClientPolicy() error = %v", err)
+	}
+}
+
 func TestConfig_ProductionRequiresAuthorization(t *testing.T) {
 	cfg, err := Load("../../config/config.yaml")
 	if err != nil {
