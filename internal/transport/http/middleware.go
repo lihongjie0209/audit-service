@@ -1,8 +1,14 @@
 package httptransport
 
 import (
+	"bytes"
 	"context"
+	"crypto/sha256"
+	"encoding/hex"
+	"encoding/json"
 	"errors"
+	"fmt"
+	"io"
 	"log/slog"
 	"mime"
 	"net/http"
@@ -62,6 +68,101 @@ func IdempotencyKey(logger *slog.Logger) gin.HandlerFunc {
 		c.Request = c.Request.WithContext(idempotency.WithContext(c.Request.Context(), key))
 		c.Next()
 	}
+}
+
+type idempotencyManager interface {
+	Enabled() bool
+	Begin(context.Context, string, string) (idempotency.Decision, error)
+	Complete(context.Context, string, string, any) error
+	Fail(context.Context, string, string, idempotency.Failure) error
+}
+type responseCapture struct {
+	gin.ResponseWriter
+	body bytes.Buffer
+}
+
+func (w *responseCapture) Write(v []byte) (int, error) {
+	_, _ = w.body.Write(v)
+	return w.ResponseWriter.Write(v)
+}
+func (w *responseCapture) WriteString(v string) (int, error) {
+	_, _ = w.body.WriteString(v)
+	return w.ResponseWriter.WriteString(v)
+}
+func IdempotencyExecution(manager idempotencyManager, paths []string, logger *slog.Logger) gin.HandlerFunc {
+	return func(c *gin.Context) {
+		key, ok := idempotency.FromContext(c.Request.Context())
+		if !ok || manager == nil || !manager.Enabled() || c.Request.Method != http.MethodPost || !auth.MatchesAny(c.FullPath(), paths) {
+			c.Next()
+			return
+		}
+		fingerprint, err := idempotencyFingerprint(c)
+		if err != nil {
+			Fail(c, logger, apperror.Invalid("read idempotent request", err))
+			return
+		}
+		decision, err := manager.Begin(c.Request.Context(), key, fingerprint)
+		if err != nil {
+			Fail(c, logger, apperror.Unavailable("idempotency is unavailable", err))
+			return
+		}
+		switch decision.State {
+		case idempotency.StateCompleted:
+			var response Response
+			if err := json.Unmarshal(decision.Response, &response); err != nil {
+				Fail(c, logger, apperror.Unavailable("idempotency response is unavailable", err))
+				return
+			}
+			response.RequestID = requestID(c)
+			c.AbortWithStatusJSON(http.StatusOK, response)
+			return
+		case idempotency.StateFailed:
+			c.AbortWithStatusJSON(decision.Failure.HTTPStatus, Response{Code: decision.Failure.Code, Message: decision.Failure.Message, Body: nil, RequestID: requestID(c)})
+			return
+		case idempotency.StateProcessing:
+			Fail(c, logger, apperror.RequestInProgress())
+			return
+		case idempotency.StateConflict:
+			Fail(c, logger, apperror.Conflict("idempotency key belongs to a different request", nil))
+			return
+		case idempotency.StateAcquired:
+		default:
+			Fail(c, logger, apperror.Unavailable("idempotency state is invalid", nil))
+			return
+		}
+		capture := &responseCapture{ResponseWriter: c.Writer}
+		c.Writer = capture
+		c.Next()
+		persistCtx, cancel := context.WithTimeout(context.WithoutCancel(c.Request.Context()), 2*time.Second)
+		defer cancel()
+		var response Response
+		if err := json.Unmarshal(capture.body.Bytes(), &response); err != nil {
+			logger.ErrorContext(c.Request.Context(), "idempotency response was not unified JSON", "error", err, "request_id", requestID(c))
+			return
+		}
+		response.RequestID = ""
+		if c.Writer.Status() >= http.StatusBadRequest {
+			err = manager.Fail(persistCtx, key, decision.Owner, idempotency.Failure{Code: response.Code, Message: response.Message, HTTPStatus: c.Writer.Status()})
+		} else {
+			err = manager.Complete(persistCtx, key, decision.Owner, response)
+		}
+		if err != nil {
+			logger.ErrorContext(c.Request.Context(), "persist idempotency result", "error", err, "request_id", requestID(c))
+		}
+	}
+}
+func idempotencyFingerprint(c *gin.Context) (string, error) {
+	body, err := io.ReadAll(c.Request.Body)
+	if err != nil {
+		return "", err
+	}
+	c.Request.Body = io.NopCloser(bytes.NewReader(body))
+	subject, _ := c.Get("subject")
+	hash := sha256.New()
+	_, _ = io.WriteString(hash, fmt.Sprint(subject))
+	_, _ = io.WriteString(hash, "\x00"+c.Request.Method+"\x00"+c.FullPath()+"\x00")
+	_, _ = hash.Write(body)
+	return hex.EncodeToString(hash.Sum(nil)), nil
 }
 
 func RequestLogger(logger *slog.Logger) gin.HandlerFunc {

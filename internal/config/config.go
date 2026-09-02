@@ -6,10 +6,12 @@ import (
 	"os"
 	"path"
 	"path/filepath"
+	"reflect"
 	"regexp"
 	"strings"
 	"time"
 
+	"github.com/go-viper/mapstructure/v2"
 	"github.com/spf13/viper"
 )
 
@@ -184,6 +186,8 @@ type User struct {
 }
 type Idempotency struct {
 	Enabled       bool          `mapstructure:"enabled"`
+	HTTPPaths     []string      `mapstructure:"http_paths"`
+	GRPCMethods   []string      `mapstructure:"grpc_methods"`
 	ProcessingTTL time.Duration `mapstructure:"processing_ttl"`
 	ResultTTL     time.Duration `mapstructure:"result_ttl"`
 	FailureTTL    time.Duration `mapstructure:"failure_ttl"`
@@ -286,7 +290,7 @@ func LoadWithProfile(path, explicitProfile string) (Config, error) {
 	}
 	v.Set("app.env", profile)
 	var cfg Config
-	if err := v.Unmarshal(&cfg); err != nil {
+	if err := v.Unmarshal(&cfg, viper.DecodeHook(mapstructure.ComposeDecodeHookFunc(mapstructure.StringToTimeDurationHookFunc(), stringToStringSliceHook()))); err != nil {
 		return Config{}, fmt.Errorf("decode config: %w", err)
 	}
 	cfg.Migration.Schema = cfg.Database.Schema
@@ -296,6 +300,27 @@ func LoadWithProfile(path, explicitProfile string) (Config, error) {
 	}
 	cfg.Runtime = Runtime{ActiveProfile: profile, ConfigFiles: loadedFiles}
 	return cfg, nil
+}
+
+func stringToStringSliceHook() mapstructure.DecodeHookFuncType {
+	typ := reflect.TypeFor[[]string]()
+	return func(from reflect.Type, to reflect.Type, data any) (any, error) {
+		if from.Kind() != reflect.String || to != typ {
+			return data, nil
+		}
+		raw := strings.TrimSpace(data.(string))
+		if strings.HasPrefix(raw, "[") && strings.HasSuffix(raw, "]") {
+			raw = strings.TrimSpace(raw[1 : len(raw)-1])
+		}
+		if raw == "" {
+			return []string{}, nil
+		}
+		values := strings.Split(raw, ",")
+		for i := range values {
+			values[i] = strings.Trim(strings.TrimSpace(values[i]), `"'`)
+		}
+		return values, nil
+	}
 }
 
 var validProfile = regexp.MustCompile(`^[a-z0-9][a-z0-9_-]*$`)
@@ -534,8 +559,24 @@ func (c Config) Validate() error {
 	if c.User.CacheTTL <= 0 || c.User.LockTTL <= 0 || c.User.LockRetryDelay <= 0 {
 		return errors.New("user cache and lock durations must be positive")
 	}
-	if c.Idempotency.Enabled && (!c.Redis.Enabled || c.Idempotency.ProcessingTTL <= 0 || c.Idempotency.ResultTTL <= 0 || c.Idempotency.FailureTTL <= 0) {
-		return errors.New("enabled idempotency requires redis and positive TTL values")
+	if c.Idempotency.Enabled && (!c.Redis.Enabled || len(c.Idempotency.HTTPPaths)+len(c.Idempotency.GRPCMethods) == 0 || c.Idempotency.ProcessingTTL <= 0 || c.Idempotency.ResultTTL <= 0 || c.Idempotency.FailureTTL <= 0) {
+		return errors.New("enabled idempotency requires redis, at least one route pattern, and positive TTL values")
+	}
+	for _, pattern := range c.Idempotency.HTTPPaths {
+		if !strings.HasPrefix(pattern, "/api/") {
+			return fmt.Errorf("idempotency.http_paths contains path outside /api %q", pattern)
+		}
+		if _, err := path.Match(pattern, "/validation/target"); err != nil {
+			return fmt.Errorf("idempotency.http_paths contains invalid pattern %q: %w", pattern, err)
+		}
+	}
+	for _, pattern := range c.Idempotency.GRPCMethods {
+		if !strings.HasPrefix(pattern, "/") || strings.Count(pattern, "/") != 2 {
+			return fmt.Errorf("idempotency.grpc_methods contains invalid method pattern %q", pattern)
+		}
+		if _, err := path.Match(pattern, "/validation/target"); err != nil {
+			return fmt.Errorf("idempotency.grpc_methods contains invalid pattern %q: %w", pattern, err)
+		}
 	}
 	if c.EventBus.Enabled && (len(c.EventBus.URLs) == 0 || c.EventBus.StreamName == "" || len(c.EventBus.Subjects) == 0 || (c.EventBus.Storage != "file" && c.EventBus.Storage != "memory") || c.EventBus.MaxAge <= 0 || c.EventBus.DuplicateWindow <= 0 || c.EventBus.ConnectTimeout <= 0 || c.EventBus.ReconnectWait <= 0 || c.EventBus.PublishTimeout <= 0 || c.EventBus.ConsumerAckWait <= 0 || c.EventBus.ConsumerMaxDeliver <= 0) {
 		return errors.New("enabled event_bus requires URLs, stream, subjects, valid storage, positive timeouts, and max deliveries")

@@ -32,6 +32,8 @@ rate_limit:
   enabled: true
 idempotency:
   enabled: true
+  http_paths: [/api/v1/audit/records/create]
+  grpc_methods: [/platform.audit.v1.AuditService/Record]
 observability:
   metrics_enabled: true
   tracing_enabled: false

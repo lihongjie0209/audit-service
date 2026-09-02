@@ -17,6 +17,7 @@ import (
 	"github.com/lihongjie0209/audit-service/internal/buildinfo"
 	"github.com/lihongjie0209/audit-service/internal/config"
 	"github.com/lihongjie0209/audit-service/internal/health"
+	"github.com/lihongjie0209/audit-service/internal/idempotency"
 	"github.com/lihongjie0209/audit-service/internal/observability"
 	"github.com/lihongjie0209/audit-service/internal/ratelimit"
 	platformauthz "github.com/lihongjie0209/microservice-platform-go/authz"
@@ -26,7 +27,7 @@ import (
 	"go.uber.org/fx"
 )
 
-func NewServer(lc fx.Lifecycle, cfg config.Config, handler *Handler, authService *auth.Service, authorizer platformauthz.Authorizer, limiter *ratelimit.Limiter, metrics *observability.Metrics, tracing *observability.Tracing, logger *slog.Logger) (*http.Server, error) {
+func NewServer(lc fx.Lifecycle, cfg config.Config, handler *Handler, authService *auth.Service, authorizer platformauthz.Authorizer, limiter *ratelimit.Limiter, idempotencyManager *idempotency.Manager, metrics *observability.Metrics, tracing *observability.Tracing, logger *slog.Logger) (*http.Server, error) {
 	if cfg.App.Env == "production" {
 		gin.SetMode(gin.ReleaseMode)
 	}
@@ -59,6 +60,7 @@ func NewServer(lc fx.Lifecycle, cfg config.Config, handler *Handler, authService
 		subject, _ := value.(string)
 		return subject
 	}, logger))
+	api.Use(IdempotencyExecution(idempotencyManager, cfg.Idempotency.HTTPPaths, logger))
 	api.POST("/version", handler.Version)
 	api.POST("/me", handler.Me)
 	api.POST("/audit/records/create", handler.RecordAudit)

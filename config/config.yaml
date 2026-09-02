@@ -114,6 +114,8 @@ user:
 
 idempotency:
   enabled: false
+  http_paths: [/api/v1/audit/records/create]
+  grpc_methods: [/platform.audit.v1.AuditService/Record]
   processing_ttl: 30s
   result_ttl: 24h
   failure_ttl: 5m
