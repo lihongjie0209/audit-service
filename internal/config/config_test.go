@@ -55,6 +55,16 @@ func TestConfig_OutboundPSKRequiresTLSOrExplicitDevelopmentOptIn(t *testing.T) {
 	}
 }
 
+func TestProductionProfileAuthenticatesApplicationGrantChecks(t *testing.T) {
+	content, err := os.ReadFile("../../config/config-production.yaml")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !strings.Contains(string(content), `auth: {type: psk, token: ""}`) {
+		t.Fatal("production application upstream does not require an injected PSK")
+	}
+}
+
 func TestConfig_ProductionRequiresAuthorization(t *testing.T) {
 	cfg, err := Load("../../config/config.yaml")
 	if err != nil {

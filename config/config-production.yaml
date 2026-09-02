@@ -41,6 +41,7 @@ outbound:
   grpc:
     application:
       target: application-service.platform.svc.cluster.local:9090
+      auth: {type: psk, token: ""}
       tls: {enabled: true, server_name: application-service.platform.svc.cluster.local, ca_file: /etc/platform/tls/ca.crt, cert_file: /etc/platform/tls/tls.crt, key_file: /etc/platform/tls/tls.key}
     authorization:
       target: authorization-service.platform.svc.cluster.local:9090
