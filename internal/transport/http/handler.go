@@ -44,6 +44,8 @@ type GetAuditRequest struct {
 	TenantID string `json:"tenant_id" binding:"required"`
 }
 type QueryAuditRequest struct {
+	Keyword       string    `json:"keyword"`
+	IDs           []string  `json:"ids"`
 	TenantID      string    `json:"tenant_id" binding:"required"`
 	ApplicationID string    `json:"application_id"`
 	ActorID       string    `json:"actor_id"`
@@ -262,6 +264,8 @@ func (h *Handler) ExportAudits(c *gin.Context) {
 
 func auditFilter(request QueryAuditRequest) auditdomain.Filter {
 	return auditdomain.Filter{
+		Keyword:       request.Keyword,
+		IDs:           request.IDs,
 		TenantID:      request.TenantID,
 		ApplicationID: request.ApplicationID,
 		ActorID:       request.ActorID,

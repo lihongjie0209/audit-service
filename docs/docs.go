@@ -503,6 +503,15 @@ const docTemplate = `{
                 "application_id": {
                     "type": "string"
                 },
+                "ids": {
+                    "type": "array",
+                    "items": {
+                        "type": "string"
+                    }
+                },
+                "keyword": {
+                    "type": "string"
+                },
                 "max_records": {
                     "type": "integer"
                 },
@@ -594,6 +603,15 @@ const docTemplate = `{
                     "type": "string"
                 },
                 "application_id": {
+                    "type": "string"
+                },
+                "ids": {
+                    "type": "array",
+                    "items": {
+                        "type": "string"
+                    }
+                },
+                "keyword": {
                     "type": "string"
                 },
                 "occurred_from": {

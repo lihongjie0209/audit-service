@@ -157,6 +157,22 @@ func TestQueryPreservesApplicationFilter(t *testing.T) {
 	}
 }
 
+func TestQueryBoundsKeywordSearchByTimeRange(t *testing.T) {
+	t.Parallel()
+	service := NewService(&fakeRepository{}, &database.Transactor{})
+	ctx := platformprincipal.SystemContext(t.Context(), "compliance-service")
+	for _, filter := range []Filter{
+		{TenantID: "tenant-1", Keyword: "login"},
+		{TenantID: "tenant-1", Keyword: "login", OccurredFrom: time.Now().Add(-32 * 24 * time.Hour), OccurredTo: time.Now()},
+		{TenantID: "tenant-1", OccurredFrom: time.Now(), OccurredTo: time.Now().Add(-time.Hour)},
+		{TenantID: "tenant-1", IDs: []string{"not-a-uuid"}},
+	} {
+		if _, err := service.Query(ctx, filter); err == nil {
+			t.Fatalf("Query(%+v) unexpectedly succeeded", filter)
+		}
+	}
+}
+
 func TestUserAuditReadsRequireGrantedApplication(t *testing.T) {
 	t.Parallel()
 	ctx := platformprincipal.WithContext(t.Context(), platformprincipal.Principal{ID: "auditor-1", Type: platformprincipal.TypeUser, TenantID: "tenant-1"})

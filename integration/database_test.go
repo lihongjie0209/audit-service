@@ -89,6 +89,10 @@ func TestRepositoryAndMigrations(t *testing.T) {
 			if err != nil || total != 1 || len(items) != 1 {
 				t.Fatalf("query total=%d len=%d err=%v", total, len(items), err)
 			}
+			items, total, err = repository.Query(ctx, auditdomain.Filter{TenantID: record.TenantID, ApplicationID: record.ApplicationID, Keyword: "BILLING", IDs: []string{record.ID, uuid.NewString()}, OccurredFrom: now.Add(-time.Hour), OccurredTo: now.Add(time.Hour), Page: 1, PageSize: 20})
+			if err != nil || total != 1 || len(items) != 1 || items[0].ID != record.ID {
+				t.Fatalf("standard filter query total=%d items=%+v err=%v", total, items, err)
+			}
 			var userTables int
 			if databaseType == "postgres" {
 				if err := db.GetContext(ctx, &userTables, `SELECT count(*) FROM pg_tables WHERE schemaname = current_schema() AND tablename = 'users'`); err != nil {

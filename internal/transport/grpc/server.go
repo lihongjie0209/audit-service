@@ -115,7 +115,7 @@ func (s *auditServer) Query(ctx context.Context, request *auditv1.QueryRequest) 
 	if request.GetPage() != nil {
 		page, pageSize = int(request.GetPage().GetPage()), int(request.GetPage().GetPageSize())
 	}
-	filter := auditdomain.Filter{TenantID: request.GetTenantId(), ApplicationID: request.GetApplicationId(), ActorID: request.GetActorId(), Action: request.GetAction(), ResourceType: request.GetResourceType(), ResourceID: request.GetResourceId(), RequestID: request.GetRequestId(), Page: page, PageSize: pageSize}
+	filter := auditdomain.Filter{Keyword: request.GetKeyword(), IDs: request.GetIds(), TenantID: request.GetTenantId(), ApplicationID: request.GetApplicationId(), ActorID: request.GetActorId(), ActorType: request.GetActorType(), Action: request.GetAction(), ResourceType: request.GetResourceType(), ResourceID: request.GetResourceId(), RequestID: request.GetRequestId(), TraceID: request.GetTraceId(), SourceService: request.GetSourceService(), Page: page, PageSize: pageSize}
 	if request.GetOccurredFrom() != nil {
 		filter.OccurredFrom = request.GetOccurredFrom().AsTime()
 	}
@@ -150,7 +150,7 @@ func filterFromProto(request *auditv1.QueryRequest) auditdomain.Filter {
 	if request.GetPage() != nil {
 		page, pageSize = int(request.GetPage().GetPage()), int(request.GetPage().GetPageSize())
 	}
-	filter := auditdomain.Filter{TenantID: request.GetTenantId(), ApplicationID: request.GetApplicationId(), ActorID: request.GetActorId(), Action: request.GetAction(), ResourceType: request.GetResourceType(), ResourceID: request.GetResourceId(), RequestID: request.GetRequestId(), Page: page, PageSize: pageSize}
+	filter := auditdomain.Filter{Keyword: request.GetKeyword(), IDs: request.GetIds(), TenantID: request.GetTenantId(), ApplicationID: request.GetApplicationId(), ActorID: request.GetActorId(), ActorType: request.GetActorType(), Action: request.GetAction(), ResourceType: request.GetResourceType(), ResourceID: request.GetResourceId(), RequestID: request.GetRequestId(), TraceID: request.GetTraceId(), SourceService: request.GetSourceService(), Page: page, PageSize: pageSize}
 	if request.GetOccurredFrom() != nil {
 		filter.OccurredFrom = request.GetOccurredFrom().AsTime()
 	}

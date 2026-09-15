@@ -136,7 +136,24 @@ func (s *Service) Query(ctx context.Context, filter Filter) (Page, error) {
 	if err := enforceTenant(caller, filter.TenantID); err != nil {
 		return Page{}, err
 	}
-	filter.TenantID, filter.ApplicationID = strings.TrimSpace(filter.TenantID), strings.TrimSpace(filter.ApplicationID)
+	filter = normalizeFilter(filter)
+	if len(filter.IDs) > 100 {
+		return Page{}, apperror.Invalid("ids must not contain more than 100 values", nil)
+	}
+	for _, id := range filter.IDs {
+		if _, err := uuid.Parse(id); err != nil {
+			return Page{}, apperror.Invalid("ids must contain valid UUID values", err)
+		}
+	}
+	if len(filter.Keyword) > 200 {
+		return Page{}, apperror.Invalid("keyword must not exceed 200 bytes", nil)
+	}
+	if !filter.OccurredFrom.IsZero() && !filter.OccurredTo.IsZero() && filter.OccurredFrom.After(filter.OccurredTo) {
+		return Page{}, apperror.Invalid("occurred_from must not be after occurred_to", nil)
+	}
+	if filter.Keyword != "" && (filter.OccurredFrom.IsZero() || filter.OccurredTo.IsZero() || filter.OccurredTo.Sub(filter.OccurredFrom) > 31*24*time.Hour) {
+		return Page{}, apperror.Invalid("keyword search requires an occurred_at range no longer than 31 days", nil)
+	}
 	if caller.Type == platformprincipal.TypeUser {
 		if err := s.verifyApplication(ctx, filter.TenantID, filter.ApplicationID, true); err != nil {
 			return Page{}, err
@@ -156,6 +173,35 @@ func (s *Service) Query(ctx context.Context, filter Filter) (Page, error) {
 		return Page{}, apperror.Internal(err)
 	}
 	return Page{Records: values, Total: total, Page: filter.Page, PageSize: filter.PageSize}, nil
+}
+
+func normalizeFilter(filter Filter) Filter {
+	filter.Keyword = strings.TrimSpace(filter.Keyword)
+	filter.TenantID = strings.TrimSpace(filter.TenantID)
+	filter.ApplicationID = strings.TrimSpace(filter.ApplicationID)
+	filter.ActorID = strings.TrimSpace(filter.ActorID)
+	filter.ActorType = strings.TrimSpace(filter.ActorType)
+	filter.Action = strings.TrimSpace(filter.Action)
+	filter.ResourceType = strings.TrimSpace(filter.ResourceType)
+	filter.ResourceID = strings.TrimSpace(filter.ResourceID)
+	filter.RequestID = strings.TrimSpace(filter.RequestID)
+	filter.TraceID = strings.TrimSpace(filter.TraceID)
+	filter.SourceService = strings.TrimSpace(filter.SourceService)
+	seen := make(map[string]struct{}, len(filter.IDs))
+	ids := make([]string, 0, len(filter.IDs))
+	for _, id := range filter.IDs {
+		id = strings.TrimSpace(id)
+		if id == "" {
+			continue
+		}
+		if _, duplicate := seen[id]; duplicate {
+			continue
+		}
+		seen[id] = struct{}{}
+		ids = append(ids, id)
+	}
+	filter.IDs = ids
+	return filter
 }
 
 func (s *Service) verifyApplication(ctx context.Context, tenantID, applicationID string, required bool) error {

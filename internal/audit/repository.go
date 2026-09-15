@@ -4,6 +4,7 @@ import (
 	"context"
 	"database/sql"
 	"errors"
+	"strings"
 
 	"github.com/go-sql-driver/mysql"
 	"github.com/jackc/pgx/v5/pgconn"
@@ -56,31 +57,9 @@ func (r *SQLRepository) Get(ctx context.Context, id, tenantID string) (Record, e
 }
 
 func (r *SQLRepository) Query(ctx context.Context, filter Filter) ([]Record, int64, error) {
-	where := ` WHERE tenant_id = ? AND deleted_at IS NULL` +
-		` AND (? = '' OR application_id = ?)` +
-		` AND (? = '' OR actor_id = ?)` +
-		` AND (? = '' OR actor_type = ?)` +
-		` AND (? = '' OR action = ?)` +
-		` AND (? = '' OR resource_type = ?)` +
-		` AND (? = '' OR resource_id = ?)` +
-		` AND (? = '' OR request_id = ?)` +
-		` AND (? = '' OR trace_id = ?)` +
-		` AND (? = '' OR source_service = ?)` +
-		` AND (? = FALSE OR occurred_at >= ?)` +
-		` AND (? = FALSE OR occurred_at <= ?)`
-	args := []any{
-		filter.TenantID,
-		filter.ApplicationID, filter.ApplicationID,
-		filter.ActorID, filter.ActorID,
-		filter.ActorType, filter.ActorType,
-		filter.Action, filter.Action,
-		filter.ResourceType, filter.ResourceType,
-		filter.ResourceID, filter.ResourceID,
-		filter.RequestID, filter.RequestID,
-		filter.TraceID, filter.TraceID,
-		filter.SourceService, filter.SourceService,
-		!filter.OccurredFrom.IsZero(), filter.OccurredFrom,
-		!filter.OccurredTo.IsZero(), filter.OccurredTo,
+	where, args, err := queryWhere(filter)
+	if err != nil {
+		return nil, 0, err
 	}
 	var total int64
 	if err := r.db.GetContext(ctx, &total, r.db.Rebind(`SELECT count(*) FROM audit_records`+where), args...); err != nil {
@@ -88,6 +67,45 @@ func (r *SQLRepository) Query(ctx context.Context, filter Filter) ([]Record, int
 	}
 	args = append(args, filter.PageSize, (filter.Page-1)*filter.PageSize)
 	var values []Record
-	err := r.db.SelectContext(ctx, &values, r.db.Rebind(`SELECT `+recordColumns+` FROM audit_records`+where+` ORDER BY occurred_at DESC, id DESC LIMIT ? OFFSET ?`), args...)
+	err = r.db.SelectContext(ctx, &values, r.db.Rebind(`SELECT `+recordColumns+` FROM audit_records`+where+` ORDER BY occurred_at DESC, id DESC LIMIT ? OFFSET ?`), args...)
 	return values, total, err
+}
+
+func queryWhere(filter Filter) (string, []any, error) {
+	parts := []string{"tenant_id = ?", "deleted_at IS NULL"}
+	args := []any{filter.TenantID}
+	for _, item := range []struct{ column, value string }{
+		{"application_id", filter.ApplicationID}, {"actor_id", filter.ActorID}, {"actor_type", filter.ActorType},
+		{"action", filter.Action}, {"resource_type", filter.ResourceType}, {"resource_id", filter.ResourceID},
+		{"request_id", filter.RequestID}, {"trace_id", filter.TraceID}, {"source_service", filter.SourceService},
+	} {
+		if item.value != "" {
+			parts = append(parts, item.column+" = ?")
+			args = append(args, item.value)
+		}
+	}
+	if len(filter.IDs) > 0 {
+		query, inArgs, err := sqlx.In("id IN (?)", filter.IDs)
+		if err != nil {
+			return "", nil, err
+		}
+		parts = append(parts, query)
+		args = append(args, inArgs...)
+	}
+	if filter.Keyword != "" {
+		parts = append(parts, `(LOWER(actor_id) LIKE ? OR LOWER(action) LIKE ? OR LOWER(resource_type) LIKE ? OR LOWER(resource_id) LIKE ? OR LOWER(request_id) LIKE ? OR LOWER(trace_id) LIKE ? OR LOWER(source_service) LIKE ?)`)
+		like := "%" + strings.ToLower(filter.Keyword) + "%"
+		for range 7 {
+			args = append(args, like)
+		}
+	}
+	if !filter.OccurredFrom.IsZero() {
+		parts = append(parts, "occurred_at >= ?")
+		args = append(args, filter.OccurredFrom)
+	}
+	if !filter.OccurredTo.IsZero() {
+		parts = append(parts, "occurred_at <= ?")
+		args = append(args, filter.OccurredTo)
+	}
+	return " WHERE " + strings.Join(parts, " AND "), args, nil
 }

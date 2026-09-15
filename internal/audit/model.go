@@ -25,6 +25,8 @@ type Record struct {
 }
 
 type Filter struct {
+	Keyword       string
+	IDs           []string
 	TenantID      string
 	ApplicationID string
 	ActorID       string

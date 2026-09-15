@@ -93,6 +93,12 @@ definitions:
         type: string
       application_id:
         type: string
+      ids:
+        items:
+          type: string
+        type: array
+      keyword:
+        type: string
       max_records:
         type: integer
       occurred_from:
@@ -153,6 +159,12 @@ definitions:
       actor_type:
         type: string
       application_id:
+        type: string
+      ids:
+        items:
+          type: string
+        type: array
+      keyword:
         type: string
       occurred_from:
         type: string
