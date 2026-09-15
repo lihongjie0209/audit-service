@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"fmt"
 	"log/slog"
 	"strings"
 	"sync"
@@ -12,6 +13,7 @@ import (
 	"github.com/lihongjie0209/audit-service/internal/config"
 	"github.com/lihongjie0209/microservice-platform-go/eventbus"
 	platformprincipal "github.com/lihongjie0209/microservice-platform-go/principal"
+	"github.com/lihongjie0209/microservice-platform-go/redact"
 	commonv1 "github.com/lihongjie0209/platform-protos/gen/go/platform/common/v1"
 	"go.uber.org/fx"
 )
@@ -56,12 +58,12 @@ func (r *auditEventRuntime) consume(ctx context.Context, envelope *commonv1.Even
 	if envelope == nil {
 		return errors.New("event envelope is required")
 	}
-	summary, err := json.Marshal(map[string]any{"event_type": envelope.GetEventType(), "schema_version": envelope.GetSchemaVersion()})
+	summary, err := summaryFromEnvelope(envelope)
 	if err != nil {
 		return err
 	}
 	requestContext := envelope.GetContext()
-	record := auditdomain.Record{ID: envelope.GetEventId(), TenantID: envelope.GetTenantId(), ApplicationID: envelope.GetApplicationId(), Action: envelope.GetEventType(), ResourceType: envelope.GetAggregateType(), ResourceID: envelope.GetAggregateId(), SourceService: sourceService(envelope.GetEventType()), AfterSummary: summary}
+	record := auditdomain.Record{ID: envelope.GetEventId(), TenantID: envelope.GetTenantId(), ApplicationID: envelope.GetApplicationId(), Action: envelope.GetEventType(), ResourceType: envelope.GetAggregateType(), ResourceID: envelope.GetAggregateId(), SourceService: sourceService(envelope), AfterSummary: summary}
 	if envelope.GetOccurredAt() != nil {
 		record.OccurredAt = envelope.GetOccurredAt().AsTime()
 	}
@@ -72,8 +74,31 @@ func (r *auditEventRuntime) consume(ctx context.Context, envelope *commonv1.Even
 	return err
 }
 
-func sourceService(eventType string) string {
-	parts := strings.Split(eventType, ".")
+func summaryFromEnvelope(envelope *commonv1.EventEnvelope) ([]byte, error) {
+	if envelope == nil {
+		return nil, errors.New("event envelope is required")
+	}
+	value := map[string]any{"event_type": envelope.GetEventType(), "schema_version": envelope.GetSchemaVersion()}
+	if payload := envelope.GetPayload(); len(payload) > 0 && json.Valid(payload) {
+		redacted, err := redact.JSON(payload)
+		if err != nil {
+			return nil, fmt.Errorf("redact event payload: %w", err)
+		}
+		value["payload"] = json.RawMessage(redacted)
+	}
+	return json.Marshal(value)
+}
+
+func sourceService(envelope *commonv1.EventEnvelope) string {
+	if payload := envelope.GetPayload(); json.Valid(payload) {
+		var metadata struct {
+			Source string `json:"source"`
+		}
+		if json.Unmarshal(payload, &metadata) == nil && strings.TrimSpace(metadata.Source) != "" {
+			return strings.TrimSpace(metadata.Source)
+		}
+	}
+	parts := strings.Split(envelope.GetEventType(), ".")
 	if len(parts) > 1 && parts[0] == "platform" {
 		return parts[1] + "-service"
 	}
