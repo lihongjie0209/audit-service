@@ -26,6 +26,11 @@ data:
   APP_REDIS_ENABLED: "true"
   APP_RATE_LIMIT_ENABLED: "true"
   APP_IDEMPOTENCY_ENABLED: "true"
+  APP_EVENT_BUS_ENABLED: "true"
+  APP_EVENT_BUS_URLS: nats://nats.platform.svc.cluster.local:4222
+  APP_EVENT_BUS_STREAM_NAME: PLATFORM_EVENTS
+  APP_EVENT_BUS_SUBJECTS: platform.>
+  APP_OPERATION_LOG_ENABLED: "true"
   APP_OBSERVABILITY_METRICS_ENABLED: "true"
   APP_MIGRATION_AUTO_UP: "true"
   APP_MIGRATION_PATH: /app/migrations/postgres
@@ -226,6 +231,7 @@ spec:
         - {port: 3306, protocol: TCP}
         - {port: 5432, protocol: TCP}
         - {port: 6379, protocol: TCP}
+        - {port: 4222, protocol: TCP}
         - {port: 4318, protocol: TCP}
         - {port: 9090, protocol: TCP}
         - {port: 443, protocol: TCP}

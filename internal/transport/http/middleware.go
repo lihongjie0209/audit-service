@@ -26,6 +26,7 @@ import (
 	appLimit "github.com/lihongjie0209/audit-service/internal/ratelimit"
 	"github.com/lihongjie0209/audit-service/internal/requestid"
 	platformauthz "github.com/lihongjie0209/microservice-platform-go/authz"
+	"github.com/lihongjie0209/microservice-platform-go/operationlog"
 	platformprincipal "github.com/lihongjie0209/microservice-platform-go/principal"
 	"go.opentelemetry.io/otel/trace"
 )
@@ -172,6 +173,37 @@ func RequestLogger(logger *slog.Logger) gin.HandlerFunc {
 		span := trace.SpanFromContext(c.Request.Context()).SpanContext()
 		logger.InfoContext(c.Request.Context(), "http request", "request_id", requestID(c), "trace_id", span.TraceID().String(), "span_id", span.SpanID().String(), "method", c.Request.Method, "path", c.FullPath(), "status", c.Writer.Status(), "duration", time.Since(started), "client_ip", c.ClientIP())
 	}
+}
+
+func AuditAccessLog(recorder operationlog.Recorder, logger *slog.Logger) gin.HandlerFunc {
+	return func(c *gin.Context) {
+		operation, tracked := auditAccessOperation(c.FullPath())
+		if !tracked || recorder == nil || !recorder.Enabled() {
+			c.Next()
+			return
+		}
+		started := time.Now()
+		c.Next()
+		entry := operationlog.Entry{Operation: operation, ResourceType: "audit_record", Source: "audit-service", Protocol: "http", Method: c.Request.Method, Route: c.FullPath(), Duration: time.Since(started), Succeeded: c.Writer.Status() < http.StatusBadRequest, ClientIP: c.ClientIP(), UserAgent: c.Request.UserAgent(), RequestID: requestID(c)}
+		if !entry.Succeeded {
+			entry.ErrorMessage = http.StatusText(c.Writer.Status())
+		}
+		persistCtx, cancel := context.WithTimeout(context.WithoutCancel(c.Request.Context()), 2*time.Second)
+		defer cancel()
+		if err := recorder.Record(persistCtx, entry); err != nil {
+			logger.ErrorContext(persistCtx, "record audit access operation", "operation", operation, "error", err, "request_id", requestID(c))
+		}
+	}
+}
+
+func auditAccessOperation(route string) (string, bool) {
+	operations := map[string]string{
+		"/api/v1/audit/records/get":    "audit.record.get",
+		"/api/v1/audit/records/query":  "audit.record.query",
+		"/api/v1/audit/records/export": "audit.record.export",
+	}
+	operation, ok := operations[route]
+	return operation, ok
 }
 
 func HTTPMetrics(metrics *observability.Metrics) gin.HandlerFunc {

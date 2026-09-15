@@ -39,6 +39,30 @@ func TestLoad_IdempotencyRouteEnvironmentOverrides(t *testing.T) {
 	}
 }
 
+func TestLoad_OperationLogEnvironmentOverride(t *testing.T) {
+	t.Setenv("APP_EVENT_BUS_ENABLED", "true")
+	t.Setenv("APP_OPERATION_LOG_ENABLED", "true")
+	cfg, err := Load("../../config/config.yaml")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !cfg.EventBus.Enabled || !cfg.OperationLog.Enabled {
+		t.Fatalf("event bus enabled=%v operation log enabled=%v", cfg.EventBus.Enabled, cfg.OperationLog.Enabled)
+	}
+}
+
+func TestConfig_OperationLogRequiresEventBus(t *testing.T) {
+	cfg, err := Load("../../config/config.yaml")
+	if err != nil {
+		t.Fatal(err)
+	}
+	cfg.OperationLog.Enabled = true
+	cfg.EventBus.Enabled = false
+	if err := cfg.Validate(); err == nil || !strings.Contains(err.Error(), "operation_log requires event_bus") {
+		t.Fatalf("Validate() error = %v", err)
+	}
+}
+
 func TestConfig_DatabaseRequiresApplicationUpstream(t *testing.T) {
 	cfg, err := Load("../../config/config.yaml")
 	if err != nil {

@@ -15,6 +15,7 @@ x-app-env: &app-env
   APP_IDEMPOTENCY_ENABLED: "true"
   APP_EVENT_BUS_ENABLED: "true"
   APP_EVENT_BUS_URLS: nats://nats:4222
+  APP_OPERATION_LOG_ENABLED: "true"
   APP_MIGRATION_AUTO_UP: "true"
   APP_MIGRATION_CREATE_SCHEMA: "true"
   APP_MIGRATION_PATH: /app/migrations/postgres

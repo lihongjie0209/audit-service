@@ -16,8 +16,63 @@ import (
 	"github.com/lihongjie0209/audit-service/internal/config"
 	"github.com/lihongjie0209/audit-service/internal/idempotency"
 	platformauthz "github.com/lihongjie0209/microservice-platform-go/authz"
+	"github.com/lihongjie0209/microservice-platform-go/operationlog"
 	platformprincipal "github.com/lihongjie0209/microservice-platform-go/principal"
 )
+
+type operationRecorderStub struct {
+	entry       operationlog.Entry
+	contextErr  error
+	recordCalls int
+}
+
+func (*operationRecorderStub) Enabled() bool { return true }
+func (r *operationRecorderStub) Record(ctx context.Context, entry operationlog.Entry) error {
+	r.entry = entry
+	r.contextErr = ctx.Err()
+	r.recordCalls++
+	return nil
+}
+
+func TestAuditAccessLogRecordsReadAfterRequestCancellation(t *testing.T) {
+	t.Parallel()
+	gin.SetMode(gin.TestMode)
+	recorder := &operationRecorderStub{}
+	ctx, cancel := context.WithCancel(context.Background())
+	router := gin.New()
+	router.Use(RequestID(), func(c *gin.Context) {
+		requestCtx := platformprincipal.WithContext(c.Request.Context(), platformprincipal.Principal{ID: "user-1", Type: platformprincipal.TypeUser, TenantID: "tenant-1"})
+		c.Request = c.Request.WithContext(requestCtx)
+		c.Next()
+	}, AuditAccessLog(recorder, slog.New(slog.NewTextHandler(io.Discard, nil))))
+	router.POST("/api/v1/audit/records/query", func(c *gin.Context) {
+		cancel()
+		OK(c, nil)
+	})
+	request := httptest.NewRequest(http.MethodPost, "/api/v1/audit/records/query", nil).WithContext(ctx)
+	request.Header.Set("X-Request-ID", "request-1")
+	request.Header.Set("User-Agent", "audit-console")
+	response := httptest.NewRecorder()
+	router.ServeHTTP(response, request)
+	if recorder.recordCalls != 1 || recorder.contextErr != nil {
+		t.Fatalf("record calls=%d context error=%v", recorder.recordCalls, recorder.contextErr)
+	}
+	if recorder.entry.Operation != "audit.record.query" || recorder.entry.Protocol != "http" || recorder.entry.RequestID != "request-1" || recorder.entry.UserAgent != "audit-console" || !recorder.entry.Succeeded {
+		t.Fatalf("entry = %+v", recorder.entry)
+	}
+}
+
+func TestAuditAccessLogDoesNotDuplicateRecordIngestion(t *testing.T) {
+	t.Parallel()
+	recorder := &operationRecorderStub{}
+	router := gin.New()
+	router.Use(AuditAccessLog(recorder, slog.New(slog.NewTextHandler(io.Discard, nil))))
+	router.POST("/api/v1/audit/records/create", func(c *gin.Context) { OK(c, nil) })
+	router.ServeHTTP(httptest.NewRecorder(), httptest.NewRequest(http.MethodPost, "/api/v1/audit/records/create", nil))
+	if recorder.recordCalls != 0 {
+		t.Fatalf("record calls = %d, want 0", recorder.recordCalls)
+	}
+}
 
 type fakeIdempotencyManager struct {
 	decision  idempotency.Decision

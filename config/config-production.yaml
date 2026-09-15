@@ -39,6 +39,10 @@ observability:
   tracing_enabled: false
 authorization:
   enabled: true
+event_bus:
+  enabled: true
+operation_log:
+  enabled: true
 outbound:
   grpc:
     application:

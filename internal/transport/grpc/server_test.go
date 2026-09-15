@@ -1,19 +1,74 @@
 package grpctransport
 
 import (
+	"context"
+	"io"
+	"log/slog"
 	"testing"
 	"time"
 
 	"github.com/lihongjie0209/audit-service/internal/apperror"
 	"github.com/lihongjie0209/audit-service/internal/auth"
 	"github.com/lihongjie0209/audit-service/internal/config"
+	"github.com/lihongjie0209/audit-service/internal/requestid"
 	platformauthz "github.com/lihongjie0209/microservice-platform-go/authz"
+	"github.com/lihongjie0209/microservice-platform-go/operationlog"
 	platformprincipal "github.com/lihongjie0209/microservice-platform-go/principal"
 	auditv1 "github.com/lihongjie0209/platform-protos/gen/go/platform/audit/v1"
+	"google.golang.org/grpc"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/metadata"
 	"google.golang.org/grpc/status"
 )
+
+type operationRecorderStub struct {
+	entry       operationlog.Entry
+	contextErr  error
+	recordCalls int
+}
+
+func (*operationRecorderStub) Enabled() bool { return true }
+func (r *operationRecorderStub) Record(ctx context.Context, entry operationlog.Entry) error {
+	r.entry = entry
+	r.contextErr = ctx.Err()
+	r.recordCalls++
+	return nil
+}
+
+func TestAuditAccessInterceptorRecordsReadAfterRequestCancellation(t *testing.T) {
+	t.Parallel()
+	recorder := &operationRecorderStub{}
+	ctx, cancel := context.WithCancel(context.Background())
+	ctx = requestid.WithContext(ctx, "request-1")
+	ctx = platformprincipal.WithContext(ctx, platformprincipal.Principal{ID: "user-1", Type: platformprincipal.TypeUser, TenantID: "tenant-1"})
+	interceptor := auditAccessInterceptor(recorder, slog.New(slog.NewTextHandler(io.Discard, nil)))
+	_, err := interceptor(ctx, nil, &grpc.UnaryServerInfo{FullMethod: auditv1.AuditService_Query_FullMethodName}, func(context.Context, any) (any, error) {
+		cancel()
+		return nil, nil
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if recorder.recordCalls != 1 || recorder.contextErr != nil {
+		t.Fatalf("record calls=%d context error=%v", recorder.recordCalls, recorder.contextErr)
+	}
+	if recorder.entry.Operation != "audit.record.query" || recorder.entry.Protocol != "grpc" || recorder.entry.RequestID != "request-1" || !recorder.entry.Succeeded {
+		t.Fatalf("entry = %+v", recorder.entry)
+	}
+}
+
+func TestAuditAccessInterceptorDoesNotDuplicateRecordIngestion(t *testing.T) {
+	t.Parallel()
+	recorder := &operationRecorderStub{}
+	interceptor := auditAccessInterceptor(recorder, slog.New(slog.NewTextHandler(io.Discard, nil)))
+	_, err := interceptor(t.Context(), nil, &grpc.UnaryServerInfo{FullMethod: auditv1.AuditService_Record_FullMethodName}, func(context.Context, any) (any, error) { return nil, nil })
+	if err != nil {
+		t.Fatal(err)
+	}
+	if recorder.recordCalls != 0 {
+		t.Fatalf("record calls = %d, want 0", recorder.recordCalls)
+	}
+}
 
 func TestAuditGRPCRequirementCoversEveryBusinessMethod(t *testing.T) {
 	t.Parallel()

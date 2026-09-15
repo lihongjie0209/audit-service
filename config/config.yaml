@@ -133,6 +133,10 @@ event_bus:
   publish_timeout: 5s
   consumer_ack_wait: 30s
   consumer_max_deliver: 10
+operation_log:
+  enabled: false
+  subject: platform.operation-log.recorded.v1
+  max_payload_bytes: 16384
 
 # Named outbound clients. Put environment-specific endpoints and credentials in
 # config-{env}.yaml or APP_ variables.

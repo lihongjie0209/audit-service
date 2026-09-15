@@ -23,6 +23,7 @@ import (
 	"github.com/lihongjie0209/audit-service/internal/requestid"
 	platformauthz "github.com/lihongjie0209/microservice-platform-go/authz"
 	platformidempotency "github.com/lihongjie0209/microservice-platform-go/idempotency"
+	"github.com/lihongjie0209/microservice-platform-go/operationlog"
 	platformprincipal "github.com/lihongjie0209/microservice-platform-go/principal"
 
 	auditv1 "github.com/lihongjie0209/platform-protos/gen/go/platform/audit/v1"
@@ -46,11 +47,11 @@ type Server struct {
 	logger  *slog.Logger
 }
 
-func NewServer(lc fx.Lifecycle, cfg config.Config, authService *auth.Service, authorizer platformauthz.Authorizer, healthService *apphealth.Service, auditService *auditdomain.Service, idempotencyManager *idempotency.Manager, metrics *observability.Metrics, logger *slog.Logger) (*Server, error) {
+func NewServer(lc fx.Lifecycle, cfg config.Config, authService *auth.Service, authorizer platformauthz.Authorizer, operationRecorder operationlog.Recorder, healthService *apphealth.Service, auditService *auditdomain.Service, idempotencyManager *idempotency.Manager, metrics *observability.Metrics, logger *slog.Logger) (*Server, error) {
 	options := []grpc.ServerOption{
 		grpc.MaxRecvMsgSize(cfg.GRPC.MaxReceiveBytes),
 		grpc.StatsHandler(otelgrpc.NewServerHandler()),
-		grpc.ChainUnaryInterceptor(environmentInterceptor(cfg.Runtime.ActiveProfile), requestIDInterceptor, idempotencyInterceptor, recoveryInterceptor(logger), authInterceptor(authService, cfg.Auth), platformauthz.UnaryServerInterceptor(authorizer, auditGRPCRequirement(cfg.Authorization.Enabled)), platformidempotency.UnaryServerInterceptor(idempotencyManager, cfg.Idempotency.GRPCMethods, logger), metricsInterceptor(metrics, logger)),
+		grpc.ChainUnaryInterceptor(environmentInterceptor(cfg.Runtime.ActiveProfile), requestIDInterceptor, idempotencyInterceptor, recoveryInterceptor(logger), authInterceptor(authService, cfg.Auth), platformauthz.UnaryServerInterceptor(authorizer, auditGRPCRequirement(cfg.Authorization.Enabled)), auditAccessInterceptor(operationRecorder, logger), platformidempotency.UnaryServerInterceptor(idempotencyManager, cfg.Idempotency.GRPCMethods, logger), metricsInterceptor(metrics, logger)),
 		grpc.ChainStreamInterceptor(environmentStreamInterceptor(cfg.Runtime.ActiveProfile), requestIDStreamInterceptor, idempotencyStreamInterceptor, recoveryStreamInterceptor(logger), authStreamInterceptor(authService, cfg.Auth), metricsStreamInterceptor(metrics, logger)),
 	}
 	if cfg.GRPC.TLS.Enabled {
@@ -85,6 +86,39 @@ func auditGRPCRequirement(enabled bool) platformauthz.GRPCResolver {
 		requirement, ok := requirements[method]
 		return requirement, ok
 	}
+}
+
+func auditAccessInterceptor(recorder operationlog.Recorder, logger *slog.Logger) grpc.UnaryServerInterceptor {
+	return func(ctx context.Context, request any, info *grpc.UnaryServerInfo, handler grpc.UnaryHandler) (any, error) {
+		operation, tracked := auditGRPCAccessOperation(info.FullMethod)
+		if !tracked || recorder == nil || !recorder.Enabled() {
+			return handler(ctx, request)
+		}
+		started := time.Now()
+		response, err := handler(ctx, request)
+		requestID, _ := requestid.FromContext(ctx)
+		entry := operationlog.Entry{Operation: operation, ResourceType: "audit_record", Source: "audit-service", Protocol: "grpc", Method: info.FullMethod, Route: info.FullMethod, RequestID: requestID, Duration: time.Since(started), Succeeded: err == nil}
+		if err != nil {
+			entry.ErrorCode = status.Code(err).String()
+			entry.ErrorMessage = status.Code(err).String()
+		}
+		persistCtx, cancel := context.WithTimeout(context.WithoutCancel(ctx), 2*time.Second)
+		defer cancel()
+		if recordErr := recorder.Record(persistCtx, entry); recordErr != nil {
+			logger.ErrorContext(persistCtx, "record audit gRPC access operation", "operation", operation, "error", recordErr, "request_id", requestID)
+		}
+		return response, err
+	}
+}
+
+func auditGRPCAccessOperation(method string) (string, bool) {
+	operations := map[string]string{
+		auditv1.AuditService_Get_FullMethodName:    "audit.record.get",
+		auditv1.AuditService_Query_FullMethodName:  "audit.record.query",
+		auditv1.AuditService_Export_FullMethodName: "audit.record.export",
+	}
+	operation, ok := operations[method]
+	return operation, ok
 }
 
 type auditServer struct {

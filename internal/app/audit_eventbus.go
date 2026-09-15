@@ -12,6 +12,7 @@ import (
 	auditdomain "github.com/lihongjie0209/audit-service/internal/audit"
 	"github.com/lihongjie0209/audit-service/internal/config"
 	"github.com/lihongjie0209/microservice-platform-go/eventbus"
+	"github.com/lihongjie0209/microservice-platform-go/operationlog"
 	platformprincipal "github.com/lihongjie0209/microservice-platform-go/principal"
 	"github.com/lihongjie0209/microservice-platform-go/redact"
 	commonv1 "github.com/lihongjie0209/platform-protos/gen/go/platform/common/v1"
@@ -116,4 +117,15 @@ func (r *auditEventRuntime) stop(context.Context) error {
 	return nil
 }
 
-var AuditEventBusModule = fx.Module("audit-event-bus", fx.Provide(newAuditEventRuntime), fx.Invoke(func(*auditEventRuntime) {}))
+func (r *auditEventRuntime) Publish(ctx context.Context, subject string, envelope *commonv1.EventEnvelope) error {
+	if r == nil || r.bus == nil {
+		return errors.New("audit event bus is unavailable")
+	}
+	return r.bus.Publish(ctx, subject, envelope)
+}
+
+func newOperationLogRecorder(cfg config.Config, publisher *auditEventRuntime) (operationlog.Recorder, error) {
+	return operationlog.New(operationlog.Config{Enabled: cfg.OperationLog.Enabled, Subject: cfg.OperationLog.Subject, MaxPayloadBytes: cfg.OperationLog.MaxPayloadBytes}, publisher)
+}
+
+var AuditEventBusModule = fx.Module("audit-event-bus", fx.Provide(newAuditEventRuntime, newOperationLogRecorder), fx.Invoke(func(*auditEventRuntime) {}))
