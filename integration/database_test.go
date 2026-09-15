@@ -16,6 +16,7 @@ import (
 	"github.com/lihongjie0209/audit-service/internal/config"
 	appdb "github.com/lihongjie0209/audit-service/internal/database"
 	"github.com/lihongjie0209/audit-service/internal/migration"
+	"github.com/lihongjie0209/microservice-platform-go/principal"
 	"github.com/testcontainers/testcontainers-go"
 	"github.com/testcontainers/testcontainers-go/modules/mysql"
 	"github.com/testcontainers/testcontainers-go/modules/postgres"
@@ -59,6 +60,7 @@ func TestRepositoryAndMigrations(t *testing.T) {
 			}
 			t.Cleanup(func() { _ = db.Close() })
 			repository := auditdomain.NewRepository(db)
+			ctx = principal.WithContext(ctx, principal.Principal{ID: "integration-auditor", Type: principal.TypeSystem})
 			now := time.Now().Truncate(time.Microsecond)
 			record := auditdomain.Record{ID: uuid.NewString(), TenantID: "tenant-1", ApplicationID: "application-1", ActorID: "user-1", ActorType: "user", Action: "created", ResourceType: "invoice", ResourceID: "invoice-1", RequestID: "request-1", TraceID: "trace-1", SourceService: "billing-service", BeforeSummary: []byte(`{}`), AfterSummary: []byte(`{"status":"draft"}`), OccurredAt: now, Version: 1, CreatedAt: now, UpdatedAt: now, CreatedBy: "user-1", UpdatedBy: "user-1"}
 			if err := appdb.NewTransactor(db).Within(ctx, nil, func(tx *sqlx.Tx) error { return repository.Create(ctx, tx, record) }); err != nil {
@@ -67,6 +69,21 @@ func TestRepositoryAndMigrations(t *testing.T) {
 			found, err := repository.Get(ctx, record.ID, record.TenantID)
 			if err != nil || found.ResourceID != record.ResourceID {
 				t.Fatalf("get audit record=%+v err=%v", found, err)
+			}
+			if found.CreatedBy != "integration-auditor" || found.UpdatedBy != "integration-auditor" || found.Version != 1 {
+				t.Fatalf("database-owned audit fields = %+v", found)
+			}
+			if err := appdb.NewTransactor(db).Within(ctx, nil, func(tx *sqlx.Tx) error {
+				_, err := tx.ExecContext(ctx, db.Rebind(`UPDATE audit_records SET action=? WHERE id=? AND occurred_at=?`), "tampered", record.ID, record.OccurredAt)
+				return err
+			}); err == nil {
+				t.Fatal("immutable audit record update unexpectedly succeeded")
+			}
+			if err := appdb.NewTransactor(db).Within(ctx, nil, func(tx *sqlx.Tx) error {
+				_, err := tx.ExecContext(ctx, db.Rebind(`DELETE FROM audit_records WHERE id=? AND occurred_at=?`), record.ID, record.OccurredAt)
+				return err
+			}); err == nil {
+				t.Fatal("physical audit record delete unexpectedly succeeded")
 			}
 			items, total, err := repository.Query(ctx, auditdomain.Filter{TenantID: record.TenantID, ApplicationID: record.ApplicationID, ActorType: "user", ResourceType: "invoice", TraceID: "trace-1", SourceService: "billing-service", Page: 1, PageSize: 20})
 			if err != nil || total != 1 || len(items) != 1 {
@@ -83,6 +100,11 @@ func TestRepositoryAndMigrations(t *testing.T) {
 				}
 			} else if err := db.GetContext(ctx, &userTables, `SELECT count(*) FROM information_schema.tables WHERE table_schema = DATABASE() AND table_name = 'users'`); err != nil {
 				t.Fatal(err)
+			} else {
+				var timezone string
+				if err := db.GetContext(ctx, &timezone, `SELECT @@session.time_zone`); err != nil || timezone != "+08:00" {
+					t.Fatalf("timezone=%q err=%v", timezone, err)
+				}
 			}
 			if userTables != 0 {
 				t.Fatal("generic template migration must not create a users table")
@@ -112,7 +134,11 @@ func startDatabase(t *testing.T, ctx context.Context, databaseType string) (stri
 		}
 		return dsn, dsn
 	case "mysql":
-		container, err := mysql.Run(ctx, "mysql:8.4", mysql.WithDatabase("app"), mysql.WithUsername("app"), mysql.WithPassword("app"))
+		configPath, err := filepath.Abs(filepath.Join("testdata", "mysql.cnf"))
+		if err != nil {
+			t.Fatal(err)
+		}
+		container, err := mysql.Run(ctx, "mysql:8.4", mysql.WithDatabase("app"), mysql.WithUsername("app"), mysql.WithPassword("app"), mysql.WithConfigFile(configPath))
 		if err != nil {
 			t.Fatal(err)
 		}

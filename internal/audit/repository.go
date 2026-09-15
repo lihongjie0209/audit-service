@@ -48,7 +48,7 @@ func uniqueViolation(err error) bool {
 
 func (r *SQLRepository) Get(ctx context.Context, id, tenantID string) (Record, error) {
 	var value Record
-	err := r.db.GetContext(ctx, &value, r.db.Rebind(`SELECT `+recordColumns+` FROM audit_records WHERE id = ? AND tenant_id = ?`), id, tenantID)
+	err := r.db.GetContext(ctx, &value, r.db.Rebind(`SELECT `+recordColumns+` FROM audit_records WHERE id = ? AND tenant_id = ? AND deleted_at IS NULL`), id, tenantID)
 	if errors.Is(err, sql.ErrNoRows) {
 		return Record{}, ErrNotFound
 	}
@@ -56,7 +56,7 @@ func (r *SQLRepository) Get(ctx context.Context, id, tenantID string) (Record, e
 }
 
 func (r *SQLRepository) Query(ctx context.Context, filter Filter) ([]Record, int64, error) {
-	where := ` WHERE tenant_id = ?` +
+	where := ` WHERE tenant_id = ? AND deleted_at IS NULL` +
 		` AND (? = '' OR application_id = ?)` +
 		` AND (? = '' OR actor_id = ?)` +
 		` AND (? = '' OR actor_type = ?)` +
