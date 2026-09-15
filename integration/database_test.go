@@ -16,6 +16,7 @@ import (
 	"github.com/lihongjie0209/audit-service/internal/config"
 	appdb "github.com/lihongjie0209/audit-service/internal/database"
 	"github.com/lihongjie0209/audit-service/internal/migration"
+	"github.com/lihongjie0209/audit-service/internal/routepolicy"
 	"github.com/lihongjie0209/microservice-platform-go/principal"
 	"github.com/testcontainers/testcontainers-go"
 	"github.com/testcontainers/testcontainers-go/modules/mysql"
@@ -60,6 +61,19 @@ func TestRepositoryAndMigrations(t *testing.T) {
 			}
 			t.Cleanup(func() { _ = db.Close() })
 			repository := auditdomain.NewRepository(db)
+			policyRepository := routepolicy.NewRepository(db, appdb.NewTransactor(db))
+			definitions, err := policyRepository.Load(ctx)
+			if err != nil || len(definitions) < 13 {
+				t.Fatalf("load bootstrap route policies count=%d err=%v", len(definitions), err)
+			}
+			versionPolicy, err := policyRepository.Get(ctx, "7e138924-3ae3-5a84-9bfe-c640ed009e29")
+			if err != nil || versionPolicy.Expression != "anonymous || authenticated" {
+				t.Fatalf("version route policy=%+v err=%v", versionPolicy, err)
+			}
+			var bootstrapActor string
+			if err := db.GetContext(ctx, &bootstrapActor, db.Rebind(`SELECT created_by FROM route_policy_definitions WHERE id=?`), versionPolicy.PolicyID); err != nil || bootstrapActor != "audit-service:migration" {
+				t.Fatalf("bootstrap actor=%q err=%v", bootstrapActor, err)
+			}
 			ctx = principal.WithContext(ctx, principal.Principal{ID: "integration-auditor", Type: principal.TypeSystem})
 			now := time.Now().Truncate(time.Microsecond)
 			record := auditdomain.Record{ID: uuid.NewString(), TenantID: "tenant-1", ApplicationID: "application-1", ActorID: "user-1", ActorType: "user", Action: "created", ResourceType: "invoice", ResourceID: "invoice-1", RequestID: "request-1", TraceID: "trace-1", SourceService: "billing-service", BeforeSummary: []byte(`{}`), AfterSummary: []byte(`{"status":"draft"}`), OccurredAt: now, Version: 1, CreatedAt: now, UpdatedAt: now, CreatedBy: "user-1", UpdatedBy: "user-1"}

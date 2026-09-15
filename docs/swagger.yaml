@@ -145,9 +145,31 @@ definitions:
     - id
     - tenant_id
     type: object
+  httptransport.GetRoutePolicyRequest:
+    properties:
+      route_id:
+        type: string
+    required:
+    - route_id
+    type: object
   httptransport.MeResponseBody:
     properties:
       subject:
+        type: string
+    type: object
+  httptransport.PageRoutePoliciesRequest:
+    properties:
+      keyword:
+        type: string
+      page:
+        type: integer
+      page_size:
+        type: integer
+      policy_status:
+        type: string
+      protocol:
+        type: string
+      route_status:
         type: string
     type: object
   httptransport.QueryAuditRequest:
@@ -234,6 +256,80 @@ definitions:
       message:
         type: string
       request_id:
+        type: string
+    type: object
+  httptransport.RoutePolicyPage:
+    properties:
+      items:
+        items:
+          $ref: '#/definitions/routepolicy.Detail'
+        type: array
+      page:
+        type: integer
+      page_size:
+        type: integer
+      total:
+        type: integer
+    type: object
+  httptransport.SetRoutePolicyRequest:
+    properties:
+      description:
+        type: string
+      expected_version:
+        type: integer
+      expression:
+        type: string
+      permissions:
+        items:
+          $ref: '#/definitions/routepolicy.PermissionInput'
+        type: array
+      route_id:
+        type: string
+      status:
+        type: string
+    required:
+    - expression
+    - route_id
+    - status
+    type: object
+  routepolicy.Detail:
+    properties:
+      description:
+        type: string
+      expression:
+        type: string
+      method:
+        type: string
+      operation:
+        type: string
+      path:
+        type: string
+      permissions:
+        items:
+          $ref: '#/definitions/routepolicy.PermissionInput'
+        type: array
+      policy_id:
+        type: string
+      policy_status:
+        type: string
+      protocol:
+        type: string
+      route_id:
+        type: string
+      route_status:
+        type: string
+      version:
+        type: integer
+    type: object
+  routepolicy.PermissionInput:
+    properties:
+      action:
+        type: string
+      key:
+        type: string
+      resource:
+        type: string
+      scope:
         type: string
     type: object
 info:
@@ -371,6 +467,90 @@ paths:
       summary: Return the authenticated subject
       tags:
       - authentication
+  /api/v1/route-policies/get:
+    post:
+      consumes:
+      - application/json
+      parameters:
+      - description: Route identifier
+        in: body
+        name: request
+        required: true
+        schema:
+          $ref: '#/definitions/httptransport.GetRoutePolicyRequest'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            allOf:
+            - $ref: '#/definitions/httptransport.Response'
+            - properties:
+                body:
+                  $ref: '#/definitions/routepolicy.Detail'
+              type: object
+      security:
+      - Bearer: []
+      summary: Get one discovered route and its authorization policy
+      tags:
+      - route-policies
+  /api/v1/route-policies/page:
+    post:
+      consumes:
+      - application/json
+      parameters:
+      - description: Route policy filters
+        in: body
+        name: request
+        required: true
+        schema:
+          $ref: '#/definitions/httptransport.PageRoutePoliciesRequest'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            allOf:
+            - $ref: '#/definitions/httptransport.Response'
+            - properties:
+                body:
+                  $ref: '#/definitions/httptransport.RoutePolicyPage'
+              type: object
+      security:
+      - Bearer: []
+      summary: Page discovered routes and their database-owned authorization policies
+      tags:
+      - route-policies
+  /api/v1/route-policies/set:
+    post:
+      consumes:
+      - application/json
+      parameters:
+      - description: Compiled CEL policy and permission references
+        in: body
+        name: request
+        required: true
+        schema:
+          $ref: '#/definitions/httptransport.SetRoutePolicyRequest'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            allOf:
+            - $ref: '#/definitions/httptransport.Response'
+            - properties:
+                body:
+                  $ref: '#/definitions/routepolicy.Detail'
+              type: object
+      security:
+      - Bearer: []
+      summary: Create or update a route authorization policy
+      tags:
+      - route-policies
   /api/v1/version:
     post:
       produces:

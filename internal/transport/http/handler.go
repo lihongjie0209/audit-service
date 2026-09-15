@@ -10,17 +10,19 @@ import (
 	auditdomain "github.com/lihongjie0209/audit-service/internal/audit"
 	"github.com/lihongjie0209/audit-service/internal/buildinfo"
 	"github.com/lihongjie0209/audit-service/internal/health"
+	"github.com/lihongjie0209/audit-service/internal/routepolicy"
 )
 
 type Handler struct {
 	logger *slog.Logger
 	health *health.Service
 
-	audits *auditdomain.Service
+	audits        *auditdomain.Service
+	routePolicies *routepolicy.Service
 }
 
-func NewHandler(healthService *health.Service, auditService *auditdomain.Service, logger *slog.Logger) *Handler {
-	return &Handler{health: healthService, audits: auditService, logger: logger}
+func NewHandler(healthService *health.Service, auditService *auditdomain.Service, routePolicies *routepolicy.Service, logger *slog.Logger) *Handler {
+	return &Handler{health: healthService, audits: auditService, routePolicies: routePolicies, logger: logger}
 }
 
 type RecordAuditRequest struct {

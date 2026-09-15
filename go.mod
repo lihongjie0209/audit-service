@@ -42,9 +42,13 @@ require (
 )
 
 require (
+	cel.dev/expr v0.25.2 // indirect
 	github.com/MicahParks/jwkset v0.11.1 // indirect
 	github.com/MicahParks/keyfunc/v3 v3.8.1 // indirect
+	github.com/antlr4-go/antlr/v4 v4.13.1 // indirect
+	github.com/google/cel-go v0.28.1 // indirect
 	github.com/nats-io/nats.go v1.53.1 // indirect
+	golang.org/x/exp v0.0.0-20240823005443-9b4947da3948 // indirect
 	golang.org/x/time v0.15.0 // indirect
 )
 

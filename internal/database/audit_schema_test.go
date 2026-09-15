@@ -35,3 +35,37 @@ func TestAuditTablesHaveImmutableDatabaseTriggersForEveryDialect(t *testing.T) {
 		})
 	}
 }
+
+func TestRoutePolicyTablesHaveMutableDatabaseAuditTriggersForEveryDialect(t *testing.T) {
+	t.Parallel()
+	for _, dialect := range []string{"postgres", "kingbase", "mysql"} {
+		dialect := dialect
+		t.Run(dialect, func(t *testing.T) {
+			t.Parallel()
+			content, err := os.ReadFile(filepath.Join("..", "..", "migrations", dialect, "000007_route_policies.up.sql"))
+			if err != nil {
+				t.Fatal(err)
+			}
+			text := strings.ToLower(string(content))
+			if strings.Contains(text, "application-service") || !strings.Contains(text, "audit-service:migration") {
+				t.Fatal("route policy bootstrap ownership is not audit-service")
+			}
+			for _, table := range []string{"route_definitions", "route_policy_definitions", "route_policy_permission_refs"} {
+				for _, field := range []string{"created_at", "created_by", "updated_at", "updated_by", "version", "deleted_at", "deleted_by"} {
+					if !strings.Contains(text, table) || !strings.Contains(text, field) {
+						t.Fatalf("%s migration lacks %s on %s", dialect, field, table)
+					}
+				}
+			}
+			if dialect == "mysql" {
+				for _, suffix := range []string{"_bi", "_bu", "_bd"} {
+					if strings.Count(text, suffix) < 3 {
+						t.Fatalf("%s migration lacks %s trigger coverage", dialect, suffix)
+					}
+				}
+			} else if strings.Count(text, "execute function audit_mutable_row()") != 3 {
+				t.Fatalf("%s migration lacks mutable trigger coverage", dialect)
+			}
+		})
+	}
+}

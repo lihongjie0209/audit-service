@@ -1,0 +1,5 @@
+DROP TRIGGER route_policy_permission_refs_audit_bd; DROP TRIGGER route_policy_permission_refs_audit_bu; DROP TRIGGER route_policy_permission_refs_audit_bi;
+DROP TRIGGER route_policy_definitions_audit_bd; DROP TRIGGER route_policy_definitions_audit_bu; DROP TRIGGER route_policy_definitions_audit_bi;
+DROP TRIGGER route_definitions_audit_bd; DROP TRIGGER route_definitions_audit_bu; DROP TRIGGER route_definitions_audit_bi;
+DROP TABLE route_policy_permission_refs; DROP TABLE route_policy_definitions; DROP TABLE route_definitions;
+

@@ -96,6 +96,7 @@ auth:
     grpc_methods: []
 authorization:
   enabled: false
+  policy_refresh_interval: 30s
 cron:
   enabled: true
   timezone: Asia/Shanghai

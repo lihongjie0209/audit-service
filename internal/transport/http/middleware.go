@@ -28,6 +28,7 @@ import (
 	platformauthz "github.com/lihongjie0209/microservice-platform-go/authz"
 	"github.com/lihongjie0209/microservice-platform-go/operationlog"
 	platformprincipal "github.com/lihongjie0209/microservice-platform-go/principal"
+	platformpolicy "github.com/lihongjie0209/microservice-platform-go/routepolicy"
 	"go.opentelemetry.io/otel/trace"
 )
 
@@ -201,6 +202,8 @@ func auditAccessOperation(route string) (string, bool) {
 		"/api/v1/audit/records/get":    "audit.record.get",
 		"/api/v1/audit/records/query":  "audit.record.query",
 		"/api/v1/audit/records/export": "audit.record.export",
+		"/api/v1/route-policies/page":  "audit.route-policy.page",
+		"/api/v1/route-policies/get":   "audit.route-policy.get",
 	}
 	operation, ok := operations[route]
 	return operation, ok
@@ -409,6 +412,68 @@ func Authentication(service *auth.Service, logger *slog.Logger, cfg config.Auth)
 			return
 		}
 		authenticate(c)
+	}
+}
+
+// DatabaseAuthentication verifies a supplied credential. The database policy
+// remains authoritative for deciding whether the route accepts anonymous use.
+func DatabaseAuthentication(service *auth.Service, logger *slog.Logger, cfg config.Config) gin.HandlerFunc {
+	return func(c *gin.Context) {
+		header := strings.TrimSpace(c.GetHeader("Authorization"))
+		if header == "" {
+			c.Next()
+			return
+		}
+		scheme, raw, ok := strings.Cut(header, " ")
+		if !ok || raw == "" {
+			Fail(c, logger, apperror.Unauthorized("invalid authorization credential"))
+			return
+		}
+		var identity platformprincipal.Principal
+		switch {
+		case strings.EqualFold(scheme, "Bearer"):
+			verified, err := service.Verify(c.Request.Context(), raw)
+			if err != nil {
+				Fail(c, logger, apperror.Unauthorized("invalid or expired token"))
+				return
+			}
+			identity = verified
+		case strings.EqualFold(scheme, "PSK"):
+			if !cfg.Auth.PSK.Enabled || !auth.VerifyPSK(header, cfg.Auth.PSK.Key) {
+				Fail(c, logger, apperror.Unauthorized("invalid PSK"))
+				return
+			}
+			identity = platformprincipal.Principal{ID: cfg.App.Name + ":psk", Type: platformprincipal.TypeServiceAccount}
+		default:
+			Fail(c, logger, apperror.Unauthorized("unsupported authorization scheme"))
+			return
+		}
+		c.Set("subject", identity.ID)
+		ctx := platformprincipal.WithContext(c.Request.Context(), identity)
+		c.Request = c.Request.WithContext(platformauthz.WithCallerCredential(ctx, header))
+		c.Next()
+	}
+}
+
+type routePolicyEvaluator interface {
+	EvaluateRoute(context.Context, string, string, string, string, platformauthz.Authorizer) error
+}
+
+func DatabaseAuthorization(enabled bool, serviceName string, policies routePolicyEvaluator, authorizer platformauthz.Authorizer, logger *slog.Logger) gin.HandlerFunc {
+	return func(c *gin.Context) {
+		if !enabled {
+			c.Next()
+			return
+		}
+		if err := policies.EvaluateRoute(c.Request.Context(), "http", strings.ToLower(c.Request.Method), c.FullPath(), serviceName, authorizer); err != nil {
+			if errors.Is(err, platformauthz.ErrDecisionUnavailable) || errors.Is(err, platformpolicy.ErrMissing) {
+				Fail(c, logger, apperror.Unavailable("authorization decision is unavailable", err))
+				return
+			}
+			Fail(c, logger, apperror.Forbidden("permission denied"))
+			return
+		}
+		c.Next()
 	}
 }
 
